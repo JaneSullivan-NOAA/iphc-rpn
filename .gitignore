@@ -1,0 +1,17 @@
+# R projects
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Don't track data
+*.xlsx
+*.xls
+*.csv
+
+# Don't track binary or fig files
+*.docx
+*.pptx
+*.png
+*.pdf
+*.png
