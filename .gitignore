@@ -15,3 +15,6 @@
 *.png
 *.pdf
 *.png
+
+# ignore shape files
+shapefiles
