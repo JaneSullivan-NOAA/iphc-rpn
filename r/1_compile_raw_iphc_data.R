@@ -1,14 +1,16 @@
-# Clean IPHC survey data
-# Jane Sullivan, Cindy Tribuzio
-# July 2020
+# Compile raw IPHC survey data
+# Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
+# Last update: July 2020
 
-# A goal of this project is to create a fully reproducible abundance index using
-# the IPHC setline survey data. The first step is to read in the data files in
-# their raw format, as they were received from the IPHC. No pre-processing of
-# these data files has occurred. These files were received from C. Tribuzio via
-# Google Drive on Jul 16.
+# Step one in creating a fully reproducible abundance index using the IPHC
+# setline survey data is to compile raw survey data into a usable csv format.
+# Here we read raw set information and bycatch info from Excel spreadsheets,
+# make sure data types and column names are consistent, join the data, and save
+# it as a single csv. The original xlsx and xls files were received from C.
+# Tribuzio via Google Drive on Jul 16, 2020.
 
 # Set up ----
+
 libs <- c("tidyverse", "fs", "readxl")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
 lapply(libs, library, character.only = TRUE)
