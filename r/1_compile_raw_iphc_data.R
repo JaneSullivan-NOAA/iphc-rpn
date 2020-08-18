@@ -56,7 +56,7 @@ names(set) <- c("year", "vessel", "station", "setno", "startlat", "startlon", "s
                 "sktsset", "sktshaul", "avghkperskt", "effskts", "hksretriev","hksobs","purpose","effective", "ineffcode") 
 
 # Create new id: unique set and year combinations
-set <- set %>% dplyr::mutate(fishing_event_id = paste(year, setno, sep = "_"))
+set <- set %>% dplyr::mutate(fishing_event_id = paste(year, station, sep = "_"))
 
 # Bycatch ----
 
@@ -86,12 +86,14 @@ bycatch %>% map(names)
 bycatch <- bycatch %>% 
   map_df(setNames, c("year", "vessel", "station", "setno", "spp_iphc", "spp_common", "spp_sci", "nobs", "subsample")) %>% 
   bind_rows() %>% 
-  mutate(fishing_event_id = paste(year, setno, sep = "_"))
+  mutate(fishing_event_id = paste(year, station, sep = "_"))
 
-# Combine and save data----
+# Combine and save ----
 
+# Combine data set info and bycatch data
 set %>% 
+  # get rid of cols that won't get used in rpn analysis
+  select(-c(startdep, endlat, endlon, enddep, midlat, midlon)) %>% 
   left_join(bycatch, by = c("year", "vessel", "station", "setno", "fishing_event_id")) %>% 
   arrange(year, iphcreg) %>% 
   write_csv(paste0("data/iphc_clean/clean_iphc_survey_", min(set$year), "_", max(set$year), ".csv"))
-
