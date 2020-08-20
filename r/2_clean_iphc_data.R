@@ -16,48 +16,35 @@
 # (1) Depth fathoms to meters: was 1.82, changed to 1.8288 to increase
 # accuracy/precision
 # (2) Assign station 6604 (2017) as NMFS area 541. Currently listed in
-# stations_lookup.csv as part of Canada. See FLAG in code
+# stations_lookup.csv as part of Canada. 
 # (3) I removed rows with no subsample code 
 # (4) Removed averaging across stations. NMFS areas are defined by where a set
-# is fished in a given yr
+# is fished in a given yr.
+# (5) The logic to remove duplicate subsample codes for YE in 2010/11 is
+# slightly different, more targeted to instances of duplcicates instead of broad
+# area definitions
+
+# Future development:
+# (1) Redefine and potentially use species groupings like "Rougheye/Shortraker",
+# "Greenland/Kamchatka/Arrowtooth", "Kamchatka/Arrowtooth" (these are
+# is.na(spp_sci))
+# (2) Currently yelloweye rockfish with subsample == 0 are removed because
+# hksretriev != hkobs. An easy development here would be to remove subsample ==
+# 1 instead and then extrapolate ineffhks to hksretriev and replace hksobs with
+# hksretriev. The issue here is that for YE with subsample = 0 have hksobs at
+# the subsample = 1 rate
 
 # Questions for Cindy ----
-
-# Questions of spatial stuff:
-# (1) Assign station 6604 (2017) as NMFS area 541. Currently listed in
-# stations_lookup.csv as part of Canada. See FLAG in code. Currently also in
-# change log. Any stations greater than 3000 is north of Canada, 2000 is Canada,
-# and < 2000 is West Coast
-# (2) When we get rid of effective = "N", there are 4 sets with remaining
-# ineffcodes ("2002_2", "2003_9", "2006_92", "2007_133")
-# (3) Are you ok with no longer averaging lon/lat across stations? This cleans
-# up a lot of code and makes each fishing event unique
-
-
-# Questions under Other station clean up section:
-# (1) in IPHC_RPN_CPUE_functions_v3 you assign all sci_name NAs to 0. These are all
-# gear related, birds, spp grps, inverts, unidentified spp. DO you want me to
-# get rid of these, or keep some specific species groupings like
-# "Rougheye/Shortraker", "Greenland/Kamchatka/Arrowtooth",
-# "Kamchatka/Arrowtooth"
-# (2) Alternatively in IPHC_RPN_CPUE_functions_v3 you get rid of "Ass_usage" for
-# "Bird" and "Mammal" - was Ass_usage a col that was developed manually? I
-# couldn't find code that reproduced this col. For Items 1 and 2, does it just
-# make sense to get rid of NA spp_sci, with an exception of some of these
-# important species complexes?
 
 # Questions under YE sampling section:
 # (1) Sporadic subsample = 0 for multiple species in federal waters >= 2010.
 # Also related, there are duplicate fishing_event_ids for YE in 2010.
 
 # Questions under remove list section:
-# (1) rmlist object from IPHC_RPN_CPUE_functions_v3 converted to fishing_event_id
-# format. All of these have >= 490 hooks retried, and >= hooks observed and
-# are effective == Y. Can you help me figure out why these were removed so we
-# can automate this?
-
-# Question under ineffective hooks section:
-# (1) Do we want to revisit inefhk defn?
+# (1) rmlist object from IPHC_RPN_CPUE_functions_v3 converted to
+# fishing_event_id format. All of these have >= 490 hooks retried and are
+# effective == Y. Can you help me figure out why these were removed so we can
+# automate this?
 
 # Question under FMP section:
 # (1) What's the difference between FMP sub area and NMFS mgmt area?
@@ -186,22 +173,40 @@ set %>%
                            "Bering/Alaska Skate"))  %>% #View()
   count(year, iphcreg, spp_common) #%>% View()
 
-# YE sampling ----
+# Double subsampling ----
 
-# Sporadic subspample = 0 (100%) sampling has occurred sporadically in AK waters
-# for YE and other species. It's not clear to me why, but this needs to be
-# carefully accounted for in RPN calcs
+# Area for future development: subsample = 0 could be used if we made hksretriev
+# = hksobs for these sets and extrapolated ineffective hooks up to the
+# hksretriev level
+
+# Sets where there were 2 subsample rates within a set. Mostly yelloweye but
+# also one spiny dogfish row in 2015 in 3B ("2015_5166"). 
+dbl_sub <- set %>% 
+  count(fishing_event_id, subsample) %>% 
+  pivot_wider(names_from = subsample, values_from = n, values_fill = 0) %>% 
+  filter(`1` >= 1 & `0` >= 1) %>% 
+  pull(fishing_event_id)
+
+# The only way this would be ok is if the hksretriev == hksobs (like they are in
+# area 2B where subsample = 0 is routine)
 set %>% 
-  filter(grepl("Yelloweye", spp_common) & 
-           iphcreg != "2B" & iphcreg != "2A") %>% 
-  count(year, subsample, iphcreg) %>% 
-  # filter(year >= 2010) %>% 
-  ggplot(aes(x = year, y = n, fill = factor(subsample))) +
+  filter(fishing_event_id %in% dbl_sub & hksobs == hksretriev) %>% 
+  distinct(fishing_event_id) %>% 
+  pull(fishing_event_id)
+# this is 0 length, so these all need to be removed. 
+
+set %>% 
+  filter(fishing_event_id %in% dbl_sub) %>% 
+  filter(subsample == 0) %>% 
+  count(year, iphcreg, spp_common) %>% 
+  ggplot(aes(x = year, y = n, fill = factor(spp_common))) +
   geom_bar(stat = 'identity', position = position_dodge(preserve = "single")) +
   facet_wrap(~iphcreg)
 
-# Oddly different subsampling occurred within the same set in 2010 and 2011 65
-# times (all but 2 are in 2010) for YE
+# Sets that have both subsample = 0 and 1 for Yelloweye Rockfish occurred in
+# 2010 and 2011 65 times (all but 2 are in 2010). If future development occurs
+# for subsample 0, then subsample = 1 for YE in this set should be removed. For
+# now we're keeping only subsample = 1 as has been done in the past.
 set %>% 
   filter(grepl("Yelloweye", spp_common) & 
            iphcreg != "2B") %>% 
@@ -210,16 +215,7 @@ set %>%
   filter(`1` >= 1 & `0` >= 1) %>% 
   pull(fishing_event_id) -> dbl_YE
 
-set %>% 
-  filter(fishing_event_id %in% dbl_YE) %>% 
-  # it only seems to be an issue with YE...
-  filter(grepl("Yelloweye", spp_common)) #%>% View()
-# I think it makes sense to delete these as they seem like duplicates. What do
-# you think? Alternatively we only keep the subsample = 0? This just seems weird
-# to me that they would have different subsample rates, different nobs, but same
-# number of hksobs.
-
-length(dbl_YE)
+setdiff(dbl_YE, dbl_sub) # all the dbl_YE are contained within dbl_sub
 
 # Logic applied in IPHC_RPN_CPUE_functions_v3, which removes 172 fishing events
 # instead of just the 65 indentified as having both subsample 0 and 1. Why are these other ones duplicates?
@@ -228,34 +224,32 @@ set %>%
   distinct(fishing_event_id) %>% 
   pull() -> old_dbl_YE
 
-intersect(dbl_YE, old_dbl_YE) # the fishing events that these have in common 
-# The fishing events in question:
-setdiff(dbl_YE, old_dbl_YE) # the values in dbl_YE that are not in old_dbl_YE - just the two in 2011
-setdiff(old_dbl_YE, dbl_YE) # the values in old_dbl_YE that are not in dbl_YE 
+# It looks like the old logic missed 6 sets with double subsamples, 5 YE in 2011
+# in 3A and 1 Spiny Dogfish in 3B
+setdiff(dbl_sub, old_dbl_YE) 
+set %>% filter(fishing_event_id %in% setdiff(dbl_sub, old_dbl_YE) & subsample == 0) %>% 
+  count(year, spp_common, iphcreg) #%>% View()
 
-# FLAG to check this with Cindy. Unless I missed something, I think it makes the
-# most sense to just use the subsample = 0 for these double counted YE:
-length(dbl_YE)
+# Decision make 8/21/20 to remove these subsample = 0 until we want to develop
+# this further for Yelloweye
 tst <- nrow(set)
 set <- set %>% 
-  filter(!(fishing_event_id %in% dbl_YE & 
-             grepl("Yelloweye", spp_common) & 
-             subsample == 1))
-tst - nrow(set) == length(dbl_YE) # should be true (only removing double YE!)
+  filter(!(fishing_event_id %in% dbl_sub & subsample == 0))
+tst - nrow(set) == length(dbl_sub) # should be true, we only want to remove problem rows
 
-# There should be no more double YE
+# Final tests
 set %>% 
-  filter(grepl("Yelloweye", spp_common) & 
-           iphcreg != "2B") %>% 
-  count(fishing_event_id, subsample) %>% 
-  pivot_wider(names_from = subsample, values_from = n, values_fill = 0) %>% 
-  filter(`1` >= 1 & `0` >= 1) %>% 
-  pull(fishing_event_id) # should be 0 length
+  distinct(fishing_event_id, subsample) %>% 
+  count(fishing_event_id) %>% 
+  filter(n > 1) %>% 
+  pull(fishing_event_id) # should be 0
 
-# Other YE sets from 2011 that were removed in IPHC_RPN_CPUE_functions_v3.R -
-# FLAG Can you help me figure out why these were removed so we can automate
-# this?
-set %>% filter(fishing_event_id %in% c("2011_4090", "2011_4106")) #%>% View()
+# All sets that are subsample == 0 should have the same number of hks observed
+# as were retrieved
+set %>% 
+  filter(subsample == 0) %>%
+  filter(hksobs != hksretriev) %>% 
+  distinct(fishing_event_id, hksobs, hksretriev) # this should technically be 0, but we'll forgive these 2 sets
 
 # Remove list ----
 
@@ -268,21 +262,6 @@ rmlist <- c("1999_2134","1999_5258","2000_4058","2000_4157","2000_4324","2000_70
           "2015_5162")
 set %>% filter(fishing_event_id %in% rmlist) #%>% View()
 
-# Duplicate sampling ----
-
-# These are all situations where YE were sampled differently than everything
-# else, with the exception of "2015_5166", where Spiny Dogfish were sampled as 0
-# (FLAG this for Cindy to check)
-dups <- set %>% 
-  distinct(fishing_event_id, subsample) %>% 
-  count(fishing_event_id) %>% 
-  filter(n > 1) %>% 
-  pull(fishing_event_id) 
-set %>% filter(fishing_event_id %in% dups & subsample == 0) %>% distinct(year, spp_common)
-# dups dealt with in ineffective hooks section below..
-
-# set %>% filter(fishing_event_id == "2015_5166") %>% View()
-
 # Ineffective hooks ----
 
 # In order to calculate CPUE or RPNs, we need to adjust for hooks that
@@ -293,7 +272,7 @@ set %>% filter(fishing_event_id %in% dups & subsample == 0) %>% distinct(year, s
 # 301 Missing Hook/Gangion
 # 302 Bent Hook       
 
-# FLAG - check with Cindy about other 300 series codes or other new codes
+# Check annually for new codes that may be also be ineffective
 set %>% filter(between(spp_iphc, 300, 399)) %>% distinct(spp_iphc, spp_common) 
 set %>% distinct(spp_iphc, spp_common) #%>% View()
 
@@ -301,7 +280,6 @@ set %>% distinct(spp_iphc, spp_common) #%>% View()
 # by subsample rate
 set <- set %>% 
   filter(spp_iphc %in% c(301, 302, 306, 307)) %>% 
-  # group_by(fishing_event_id, subsample) %>% # old way
   group_by(fishing_event_id) %>%  # new way?
   dplyr::summarise(inefhks = sum(nobs)) %>% 
   ungroup() %>% 
@@ -310,11 +288,11 @@ set <- set %>%
   mutate(inefhks = ifelse(is.na(inefhks), 0, inefhks))
 
 # if subsample = 1 (20 hk count), use ratio of ineffective hooks to observed
-# hooks to calculate total ineffective hooks for the set. fishing events with
-# different sampling strategies (e.g. YE in 2010/11, aka dups, defined above)
-# are treated as subsample = 1 in the total ineffective hook count calculation.
+# hooks to calculate total ineffective hooks for the set. This will need to be
+# changed if the Yelloweye sets with different subsample rates get used in the
+# future.
 set <- set %>%
-  mutate(tot_ineff_hks = ifelse(subsample == 1 | (fishing_event_id %in% dups & subsample == 0), 
+  mutate(tot_ineff_hks = ifelse(subsample == 1, 
                                 (inefhks / hksobs) * hksretriev,
                                 inefhks),
          tot_eff_hks = hksretriev - tot_ineff_hks) 
@@ -436,7 +414,7 @@ points(temp_lost[ , c(1,2)], col="red") # should = Canada
 # Puget Sound later in the code) then assign all of them to NMFS area = 0
 lost_st$nmfs <- 0
 
-# combine NMFS area stations with CA stations
+# combine NMFS area stations with Canada stations
 coords_canada <- as.data.frame(lost_st) %>% 
   select(nmfs, index, lon, lat, fishing_event_id)
 coords <- rbind(coords_nmfs, coords_canada)
@@ -459,7 +437,7 @@ set <- coords %>%
 # Join FMP, sub area, mgmt area info
 set <- set %>% left_join(fmp)
 
-# Puget Sound ----
+# Puget Sound & West Coast ----
 
 # Puget Sound gets lumped into Canada... this logic should work, but dbl check
 # that all these are in IPHC stat area 50
@@ -492,9 +470,9 @@ set <- set %>%
 
 # Make all west coast areas one
 set <- set %>% 
-  mutate(FMP = ifelse(FMP %in% c("ORCA", "WA", "WAOR"), "WC", FMP),
-         FMP_sub_area = ifelse(FMP_sub_area %in% c("ORCA", "WA", "WAOR"), "WC", FMP_sub_area),
-         NMFS_mgmt_area = ifelse(NMFS_mgmt_area %in% c("ORCA", "WA", "WAOR"), "WC", NMFS_mgmt_area),)
+  mutate(FMP = ifelse(FMP %in% c("ORCA", "WA", "WAOR") | iphcreg == "2A", "WC", FMP),
+         FMP_sub_area = ifelse(FMP_sub_area %in% c("ORCA", "WA", "WAOR") | iphcreg == "2A", "WC", FMP_sub_area),
+         NMFS_mgmt_area = ifelse(NMFS_mgmt_area %in% c("ORCA", "WA", "WAOR") | iphcreg == "2A", "WC", NMFS_mgmt_area),)
 
 # Other checks ----
 
@@ -518,40 +496,45 @@ set %>% filter(iphcreg == "2B" & NMFS_AREA == 650) %>% distinct(station)
 # check that there are no errors.
 set %>% filter(station %in% c(3023, 3122) & NMFS_AREA == 0) 
 
+# Oddball areas ----
+
+set %>% distinct(iphcreg, NMFS_mgmt_area) # make sure everything looks correct
+
+# Notes:
+
+# (1) Prince William Sound defined as iphcreg == "3A" & NMFS_mgmt_area == "INSIDE")
+
+# (2) IPHC 2C areas in Canada: these are stations that hug the SEAK / Canadian
+# boundary. These aren't errors
+check_2C_CAN <- set %>% filter(iphcreg == "2C" & NMFS_mgmt_area == "CAN")
+# tst <- coords %>% 
+#   filter(fishing_event_id %in% unique(check_2C_CAN$fishing_event_id)) 
+# tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)], 
+#                                data = tst,
+#                                proj4string = CRS("+proj=longlat"))
+# tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
+# points(tst2[ , c(1, 2)], col = "green") 
+
 # Area size info ----
 
 # Extract cols used for analysis
 areasize <- areasize %>% 
   select(FMP_sub_area, RPN_strata, fmp_depth = concat_meters, area_kmsq)
 
-# Join to set data using unique combinations of FMP_sub_area and depth bin
+# Join to set data using unique combinations of FMP_sub_area and depth bin,
+# formerly concat_meters
 set <- set %>% 
   mutate(fmp_depth = paste0(FMP_sub_area, depbin_m)) %>% 
   left_join(areasize) 
 
-# Check - these should be Canada, West Coast, and Inside waters SEAK
-set %>% filter(is.na(RPN_strata)) %>% distinct(FMP_sub_area, iphcreg, NMFS_mgmt_area)
-tst <- set %>% filter(is.na(RPN_strata) & iphcreg == "3A" & NMFS_mgmt_area == "CAN") %>% pull(fishing_event_id) #%>% View()
+# Check - the only RPN_strata with NAs should be Canada (CAN), West Coast (WC),
+# and Inside waters SEAK (INSIDE)
+set %>% 
+  filter(is.na(RPN_strata)) %>% 
+  distinct(FMP_sub_area) %>% 
+  arrange(FMP_sub_area) %>% 
+  pull(FMP_sub_area) == c("CAN", "INSIDE", "WC") # should be TRUE
 
-tst <- coords %>%
-  filter(fishing_event_id %in% tst) %>% 
-  distinct(fishing_event_id, nmfs, lon, lat)
-plot(sp_data)
-axis(1); axis(2)
-tst2 <- SpatialPointsDataFrame(coords = tst[ ,c(2, 3)],
-                                  data = tst,
-                                  proj4string = CRS("+proj=longlat"))
-tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
-points(tst2[ , c(1,2)], pch = 20, col="green")
-
-  
-unique(set$FMP_sub_area)
-unique(areasize$FMP_sub_area)
-dim(set)
-set %>% filter(is.na(FMP_sub_area)) %>% View()
-right_join(set, area) %>% dim()
-
-names(area)
-unique(area$Notes)
 # Write data ----
 
+write_csv(set, paste0("output/", YEAR, "/final_iphc_survey_", FIRST_YEAR, "_", YEAR, ".csv"))
