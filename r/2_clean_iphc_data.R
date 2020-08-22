@@ -24,15 +24,14 @@
 # slightly different, more targeted to instances of duplcicates instead of broad
 # area definitions
 
-# Future development:
-# (1) Redefine and potentially use species groupings like "Rougheye/Shortraker",
-# "Greenland/Kamchatka/Arrowtooth", "Kamchatka/Arrowtooth" (these are
-# is.na(spp_sci))
-# (2) Currently yelloweye rockfish with subsample == 0 are removed because
-# hksretriev != hkobs. An easy development here would be to remove subsample ==
-# 1 instead and then extrapolate ineffhks to hksretriev and replace hksobs with
-# hksretriev. The issue here is that for YE with subsample = 0 have hksobs at
-# the subsample = 1 rate
+# Future development: (1) Redefine and potentially use species groupings like
+# "Rougheye/Shortraker", "Greenland/Kamchatka/Arrowtooth",
+# "Kamchatka/Arrowtooth" (these are is.na(spp_sci)) (2) Currently yelloweye
+# rockfish with subsample == 0 are removed because hksretriev != hkobs. An easy
+# development here would be to remove subsample == 1 instead and then
+# extrapolate obs_ineffhks to hksretriev and replace hksobs with hksretriev. The
+# issue here is that for YE with subsample = 0 have hksobs at the subsample = 1
+# rate
 
 # Questions for Cindy ----
 
@@ -79,7 +78,7 @@ areasize <- read_csv("data/areasize_2015.csv")
 # IPHC/RACE species codes conversions with assumed usage - original file from C
 # Tribuzio
 spp_conversion <- read_csv("data/species_code_conv_table.csv") %>% 
-  select(spp_iphc = IPHC_code, spp_race = RACE_CODE, assumed_use = Ass_usage)
+  select(species = Species, spp_iphc = IPHC_code, spp_race = RACE_CODE, assumed_use = Ass_usage)
 
 # Reformat spatial data prior to 2013 ----
 
@@ -276,31 +275,32 @@ set %>% filter(fishing_event_id %in% rmlist) #%>% View()
 set %>% filter(between(spp_iphc, 300, 399)) %>% distinct(spp_iphc, spp_common) 
 set %>% distinct(spp_iphc, spp_common) #%>% View()
 
-# Assume old code defns are correct, create new col inefhks = # ineffective hks
-# by subsample rate
+# Assume old code defns are correct, create new col obs_ineffhks = # ineffective
+# hks by subsample rate
 set <- set %>% 
   filter(spp_iphc %in% c(301, 302, 306, 307)) %>% 
   group_by(fishing_event_id) %>%  # new way?
-  dplyr::summarise(inefhks = sum(nobs)) %>% 
+  dplyr::summarise(obs_ineffhks = sum(nobs)) %>% 
   ungroup() %>% 
   right_join(set) %>% 
   # Account for situations where there were no ineffective hooks
-  mutate(inefhks = ifelse(is.na(inefhks), 0, inefhks))
+  mutate(obs_ineffhks = ifelse(is.na(obs_ineffhks), 0, obs_ineffhks))
 
 # if subsample = 1 (20 hk count), use ratio of ineffective hooks to observed
 # hooks to calculate total ineffective hooks for the set. This will need to be
 # changed if the Yelloweye sets with different subsample rates get used in the
 # future.
 set <- set %>%
-  mutate(tot_ineff_hks = ifelse(subsample == 1, 
-                                (inefhks / hksobs) * hksretriev,
-                                inefhks),
-         tot_eff_hks = hksretriev - tot_ineff_hks) 
+  # ex = extrapolated
+  mutate(ex_ineffhks = ifelse(subsample == 1, 
+                                (obs_ineffhks / hksobs) * hksretriev,
+                              obs_ineffhks),
+         ex_effhks = hksretriev - ex_ineffhks) 
 
 # This should be 0. If it's not, there are likely duplicates that need to be
 # fixed.
 set %>% 
-  distinct(fishing_event_id, tot_ineff_hks) %>% 
+  distinct(fishing_event_id, ex_ineffhks) %>% 
   count(fishing_event_id) %>% 
   filter(n > 1) %>% 
   pull(fishing_event_id) 
