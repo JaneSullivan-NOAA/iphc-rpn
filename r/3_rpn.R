@@ -1,110 +1,129 @@
 # IPHC Relative Population Numbers by Species/Complex
-# Cindy Tribuzio, Jane Sullivan
-# Aug 2020
+# Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
+# Last update: Sep 2020
 
 libs<-c("tidyverse","boot")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )])>0){install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE )])}
 lapply(libs,library,character.only=T)
 
-# '%nin%' <- Negate('%in%')
-
 # Set up ----
 
+# Range of years (important as we develop methods to incorporate years <= 1997)
 FIRST_YEAR <- 1998
 YEAR <- 2018
 
-# Function specific inputs 
-RACE_CODE = 20510
-COMMON_NAME = "Sablefish" # "Sablefish (Blackcod)"
-ITER = 1500
-SAVE_OUTPUT = TRUE
+# Number of bootstrap replicates
+ITER <- 1500
+
+# This is a temporary flag to toggle between using observed or extrapolated CPUE
+# to calculate area-wide CPUEs or RPNs. The methods aren't totally consistent in
+# the existing functions, but I don't think this will ultimately matter for
+# index calculations.
+OBS_OR_EXTRAP <- "EXTRAP"
+
+# Source function to run CPUE and RPN indices
+source("r/functions.R")
+
+# Future development ----
+
+# (1) Bootstrap for RPN - should it be strata = RPN_strata and summed at the
+# FMP_sub_area level? Currently bootstrapped at RPN_strata level and summed up
+# to FMP_sub_area.
+
+# (2) Could potentially increase code speed using data.table. Will have to
+# balance with code readability.
+
+# (3) What are the priorities for development? Including benchmarks or time
+# stamps, doing multiple species at once, etc.
+
+# (4) Split INSIDE between PWS and SEAK. Collaborate with ADFG biologists to get
+# depth strata area_kmsq, produce RPNs for YEAK and Pcod inside waters (lingcod?).
+
 
 # Read data ----
 
 set <- read_csv(paste0("output/", YEAR, "/final_iphc_survey_", FIRST_YEAR, "_", YEAR, ".csv")) %>% 
-  select(fishing_event_id, year, NMFS_mgmt_area, FMP, RPN_strata, area_kmsq, 
-         hksobs, nobs, obs_ineffhks, ex_effhks, ex_ineffhks, species)
+  select(fishing_event_id, NMFS_mgmt_area, FMP, FMP_sub_area, RPN_strata, area_kmsq, 
+         species, year, obs_catch, obs_effhks, obs_ineffhks, ex_effhks, ex_ineffhks,
+         spp_iphc, spp_race)
 
 # look up table ensure all sets are accounted for, even when the species
 # wasn't observed
 fishing_events <- set %>% 
-  distinct(fishing_event_id, year, NMFS_mgmt_area, 
-           FMP, RPN_strata, area_kmsq, hksobs, obs_ineffhks, ex_effhks, ex_ineffhks)
+  distinct(fishing_event_id, NMFS_mgmt_area, FMP, FMP_sub_area, RPN_strata, area_kmsq, year, 
+           obs_effhks, obs_ineffhks, ex_effhks, ex_ineffhks)
 
-# Subset ----
+# Sablefish ----
+set %>% filter(species == "Sablefish") %>% distinct(species, spp_iphc, spp_race) # check codes
+calc_iphc_indices(COMMON_NAME = "Sablefish")
 
-# isolate species of interest, join
-dat <- set %>% 
-  filter(species == COMMON_NAME) %>% 
-  # complete data set with 0 catch observations
-  right_join(fishing_events) %>% 
-  replace_na(list(species = COMMON_NAME, nobs = 0))
+# Pacific cod ----
+set %>% filter(grepl(c("Cod|cod|Pcod|pcod"), species)) %>% count(species, spp_iphc, spp_race) # codes
+set <- set %>% mutate(species = ifelse(species == "Cod_Pacific", "Pacific cod", species))
+calc_iphc_indices(COMMON_NAME = "Pacific cod")
 
-# Area combos ----
+# Sharks ---- 
 
-# The CPUE analysis is conducted at different spatial scales depending
-# on what's desired
-dat <- dat %>% mutate(area_combo = "FMP_withINSIDE",
-                      area = FMP) %>% 
-  bind_rows(dat %>% mutate(area_combo = "FMP_withoutINSIDE",
-                           area = FMP) %>% 
-              filter(NMFS_mgmt_area != "INSIDE")) %>% 
-  bind_rows(dat %>% mutate(area_combo = "NMFS_mgmt_areas",
-                     area = NMFS_mgmt_area)) %>% 
-  select(-FMP, -NMFS_mgmt_area)
+# Following existing methods to only include main shark species
+# (spiny dogfish, sleepers, salmon sharks)
+set %>% filter(spp_race %in% c(310, 320, 232)) %>% count(species, spp_iphc, spp_race)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(310, 320, 232), "Common sharks", species))
+calc_iphc_indices(COMMON_NAME = "Common sharks")
 
-# CPUE/Catch ----
+# Shortraker rockfish ----
 
-station_dat <- dat %>% 
-  mutate(obs_effhks = hksobs - obs_ineffhks,
-         obs_cpue = nobs / obs_effhks,
-         ex_catch = obs_cpue * ex_effhks)
+# note the potential to use SR/RE complex data
+set %>% filter(spp_race %in% c(30576) | grepl(c("Shortraker|shortraker"), species)) %>% 
+  count(species, spp_iphc, spp_race)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(30576), "Shortraker rockfish", species))
+calc_iphc_indices(COMMON_NAME = "Shortraker rockfish")
 
-area_dat <- station_dat  %>% 
-  # FLAG - in the original code the mean of the tot_eff_hks was taken, comment
-  # saying that's necessary when running code for more than one spp. I'm not
-  # sure about that. There should be only one row per species/species group per
-  # fishing event
-  distinct(area_combo, species, fishing_event_id, year, area, ex_effhks, nobs, ex_catch) %>%
-  group_by(area_combo, species, year, area) %>% 
-  dplyr::summarise(n_set = length(unique(fishing_event_id)),
-                   n_pos_catch = length(which(nobs > 0)), # sum(nobs > 0))
-                   area_ex_catch = sum(ex_catch),
-                   # FLAG - the original code sums the tot_ineff_hks and
-                   # then subtracts them from the extrapolated effective hooks
-                   # in the myCPUE function (line ~ 227). We've already done
-                   # that step (eff_hks = hkretriev - ex_ineff) so I think this is
-                   # doubling the ineffective hook correction.
-                   area_ex_effhks = sum(ex_effhks)) %>% 
-  ungroup() %>% 
-  mutate(mean_cpue = area_ex_catch / area_ex_effhks)
+# Shortspine thornyheads ----
 
-# Bootstrap CPUE ----
+# note the potential to use unidentified thornyhead data
+set %>% filter(spp_race %in% c(30020) | grepl(c("shortspine|Shortspine|thorny|Thorny"), species)) %>% 
+  count(species, spp_iphc, spp_race)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(30020), "Shortspine thornyhead", species))
+calc_iphc_indices(COMMON_NAME = "Shortspine thornyhead")
 
-# TODO : figure out what to do if sample sizes are too small or catch is 0
+# Yelloweye rockfish ----
 
-calc_cpue <- function(d, i) {
-  sum(d$tot_catch[i]) / sum(d$tot_eff_hks[i])
-}
+set %>% filter(spp_race %in% c(30470) | grepl(c("yelloweye|Yelloweye"), species)) %>% 
+  count(species, spp_iphc, spp_race) %>% print(n = Inf)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(30570), "Yelloweye rockfish", species))
+calc_iphc_indices(COMMON_NAME = "Yelloweye rockfish")
 
-# Convert to list so you can bootstrap across multiple groups simultaneously
-# using purrr package
-nested_dat <- station_dat %>% 
-  tidyr::nest(data = c(-species, -area_combo, -year, -area))
+# Rougheye/Blackspotted rockfish ----
 
-lapply(nested_dat, head)
+# FLAG - I don't see 30051 in the data. Is this an old RACE code?
+set %>% filter(spp_race %in% c(30050, 30051, 30052) | grepl(c("rougheye|Rougheye|Blackspotted"), species)) %>% 
+  count(species, spp_iphc, spp_race) %>% print(n = Inf)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(30050, 30052), "Rougheye Blackspotted", species))
+calc_iphc_indices(COMMON_NAME = "Rougheye Blackspotted")
 
-nested_dat <- nested_dat %>% 
-  mutate(boot_cpue = map(.x = data, ~ boot(data = .x, statistic = calc_cpue, R = ITER)),
-         boot_mean_cpue = map(.x = boot_cpue, ~ mean(.x$t)), # bootstrap mean
-         boot_bias = map(.x = boot_cpue, ~ mean(.x$t) - .x$t0), # bias (difference between bootstrap and original mean)
-         boot_sd = map(.x = boot_cpue, ~ sd(.x$t)), # std error of bootstrap estimate = sd of bootstrap realizations (t)
-         boot_ci = map(.x = boot_cpue, ~ boot.ci(.x, conf = 0.95, type = "bca")),
-         boot_lci = map(.x = boot_ci, ~ .x$bca[[4]]), # lower 2.5% limit
-         boot_uci = map(.x = boot_ci, ~ .x$bca[[5]])) # upper 97.5% limit
+# Arrowtooth flounder ----
 
-nested_dat2 <- nested_dat %>%
-  select(-data, -boot_cpue, -boot_ci) %>% 
-  unnest(cols = c(species, boot_mean_cpue, boot_lci, boot_uci, boot_bias, boot_sd)) %>% 
-  left_join(area_dat)
-View(nested_dat2)
+# some Kamchatka/ATF overlap that may be useful?
+set %>% filter(spp_race %in% c(10110) | grepl(c("arrowtooth|Arrowtooth"), species)) %>% 
+  count(species, spp_iphc, spp_race) %>% print(n = Inf)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(10110), "Arrowtooth flounder", species))
+calc_iphc_indices(COMMON_NAME = "Arrowtooth flounder")
+
+# Greenland turbot ----
+
+# Low sample size overall, probably only applicable to BS, maybe AI
+set %>% filter(spp_race %in% c(10115) | grepl(c("Greenland|turbot|Turbot"), species)) %>% 
+  count(species, FMP_sub_area, spp_iphc, spp_race) %>% print(n = Inf)
+set <- set %>% mutate(species = ifelse(spp_race %in% c(10115), "Greenland turbot", species))
+calc_iphc_indices(COMMON_NAME = "Greenland turbot")
+
+# Other -----
+
+# all spp
+set %>%  count(species, spp_iphc, spp_race) %>% 
+  arrange(-n) %>% print(n = Inf)
+
+# rockfish
+set %>% filter(grepl(c("rockfish|Rockfish"), species)) %>% 
+  count(species, spp_iphc, spp_race) %>% 
+  arrange(-n) %>% print(n = Inf)

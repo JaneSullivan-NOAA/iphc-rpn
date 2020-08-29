@@ -1,6 +1,6 @@
 # Clean IPHC data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: July 2020
+# Last update: Sep 2020
 
 # Step two in creating a fully reproducible abundance index using the IPHC
 # setline survey data is add in new columns, including spatial/area-specific
@@ -107,19 +107,31 @@ set <- oldset %>%
 
 # Ineffective sets ----
 
-set <- set %>% 
-  # Only keep "effective" sets
-  filter(effective == "Y")
+# Get rid of any sets deemed by IPHC as ineffective
+ineff_sets <- set %>% 
+  filter(effective == "N") %>% 
+  pull(fishing_event_id)
+
+# Only keep "effective" sets
+set <- set %>% filter(!(fishing_event_id %in% ineff_sets))
+
+# Create running list of removed data
+removed_data <- data.frame(fishing_event_id = ineff_sets,
+                           entire_set_removed = TRUE,
+                           reason = "effective code = N")
 
 # Get rid of any remaining ineffcodes
 # GI = Gear issues; PS = Predation shark; OT = Other
-unique(set$ineffcode)
-ineffsets <- set %>% filter(!is.na(ineffcode)) %>% distinct(ineffcode, fishing_event_id) %>% pull(fishing_event_id)
-# set %>% filter(fishing_event_id %in% ineffsets) %>% View()
-set <- set %>% 
-  filter(is.na(ineffcode)) %>% 
-  select(-ineffcode)
 
+unique(set$ineffcode)
+ineff_sets2 <- set %>% filter(!is.na(ineffcode)) %>% distinct(ineffcode, fishing_event_id) %>% pull(fishing_event_id)
+# set %>% filter(fishing_event_id %in% ineff_sets2) %>% View()
+set <- set %>% filter(!(fishing_event_id %in% ineff_sets2)) %>% select(-ineffcode)
+
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = ineff_sets2,
+                       entire_set_removed = TRUE,
+                       reason = "effective code = Y, but ineffective code = GI | GI:PS | OT"))
 # Subsamples ----
 
 # subsample	codes					
@@ -131,14 +143,31 @@ no_subsample <- set %>% filter(is.na(subsample)) %>% pull(fishing_event_id)
 # set %>% filter(fishing_event_id %in% no_subsample) %>% View()
 # All of the cases where subsample is NA there are 0 hooks observed. Remove
 # these.
-set <- set %>% filter(!is.na(subsample))
+set <- set %>% filter(!(fishing_event_id %in% no_subsample))
+
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = no_subsample,
+                       entire_set_removed = TRUE,
+                       reason = "no subsample code"))
 
 # Birds/marine mammals ----
 
+set <- set %>% left_join(spp_conversion, by = "spp_iphc") # conversion codes from IPHC
+
+# Remove rows with bird and marine mammal bycatch
+not_gf <- set %>% 
+  filter(assumed_use != "Groundfish") %>% 
+  select(fishing_event_id, assumed_use, spp_common)
+not_gf %>% count(assumed_use)  
+not_gf <- not_gf %>% distinct(fishing_event_id) %>% pull()
+
 # Remove birds and marine mammals
-set <- set %>% 
-  left_join(spp_conversion, by = "spp_iphc") %>% 
-  filter(assumed_use == "Groundfish") 
+set <- set %>% filter(assumed_use == "Groundfish") 
+
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = not_gf,
+                       entire_set_removed = FALSE,
+                       reason = "specific rows with bird or marine mammal bycatch"))
 
 # Duplicate sets ----
 
@@ -152,8 +181,8 @@ set %>% distinct(fishing_event_id, setno) %>%
 
 # If there are remaining stations with <= 15 hooks, remove them. They should
 # already have been filtered out as ineffective.
-set %>% filter(hksobs <= 15) %>% count() # should be 0
-set <- set %>% filter(hksobs > 15) 
+set %>% filter(hksobs <= 15) %>% count() # should be 0 - if not must add them to removed_data and filter them from set
+# set <- set %>% filter(hksobs > 15) 
 
 # Remaining columns with NAs should only be spp_sci (species scientific name)
 set %>% 
@@ -163,7 +192,8 @@ set %>%
 set %>% filter(is.na(spp_sci)) %>% pull(spp_common) %>% unique() 
 # these are all gear related, spp grps, unidentified spp.. make # TO DO: added
 # to list to discuss with Cindy. Do we want to treat these species groups in a
-# specific way? 
+# specific way? At a minimum, we should tell data users that these are either
+# used or removed.
 set %>% 
   filter(spp_common %in% c("Rougheye/Shortraker", 
                            "Greenland/Kamchatka/Arrowtooth",
@@ -217,7 +247,7 @@ set %>%
 setdiff(dbl_YE, dbl_sub) # all the dbl_YE are contained within dbl_sub
 
 # Logic applied in IPHC_RPN_CPUE_functions_v3, which removes 172 fishing events
-# instead of just the 65 indentified as having both subsample 0 and 1. Why are these other ones duplicates?
+# instead of just the 65 identified as having both subsample 0 and 1. 
 set %>% 
   filter(year %in% c(2010, 2011) & station >= 3000 & station <= 4050 & subsample == 0) %>% 
   distinct(fishing_event_id) %>% 
@@ -226,10 +256,11 @@ set %>%
 # It looks like the old logic missed 6 sets with double subsamples, 5 YE in 2011
 # in 3A and 1 Spiny Dogfish in 3B
 setdiff(dbl_sub, old_dbl_YE) 
+setdiff(old_dbl_YE, dbl_sub) # = 0, all of the old dbl YE are in dbl_sub
 set %>% filter(fishing_event_id %in% setdiff(dbl_sub, old_dbl_YE) & subsample == 0) %>% 
   count(year, spp_common, iphcreg) #%>% View()
 
-# Decision make 8/21/20 to remove these subsample = 0 until we want to develop
+# Decision made 8/21/20 to remove these subsample = 0 until we want to develop
 # this further for Yelloweye
 tst <- nrow(set)
 set <- set %>% 
@@ -250,16 +281,36 @@ set %>%
   filter(hksobs != hksretriev) %>% 
   distinct(fishing_event_id, hksobs, hksretriev) # this should technically be 0, but we'll forgive these 2 sets
 
-# Remove list ----
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = dbl_sub,
+                       entire_set_removed = FALSE,
+                       reason = "sets w/ subsample = 0 & 1, removed rows where subsample = 0"))
+
+# Duplicate species codes ----
 
 # rmlist object from IPHC_RPN_CPUE_functions_v3.R converted to fishing_event_id
 # format. All of these have >= 490 hooks retried, and >= hooks observed and are
-# effective == Y. FLAG Can you help me figure out why these were removed so we
-# can automate this?
+# effective == Y. These were removed because of duplicate species counts. We
+# found 5 more of these cases to be removed.
 rmlist <- c("1999_2134","1999_5258","2000_4058","2000_4157","2000_4324","2000_7085","2000_7089","2000_7090","2000_7093",
           "2004_6144","2008_1061","2008_1070","2008_7022","2009_4031","2009_5019","2010_6070","2010_7083","2013_4347",
           "2015_5162")
-set %>% filter(fishing_event_id %in% rmlist) #%>% View()
+
+dup_spp <- set %>% 
+  group_by(fishing_event_id) %>% 
+  count(spp_common) %>% 
+  filter(n > 1) %>% 
+  pull(fishing_event_id)
+
+setdiff(dup_spp, rmlist) # new sets with duplicate species
+
+# Remove all these sets do to data entry errors
+set <- set %>% filter(!(fishing_event_id %in% dup_spp))
+
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = dup_spp,
+                       entire_set_removed = TRUE,
+                       reason = "sets w/ duplicate species counts"))
 
 # Ineffective hooks ----
 
@@ -279,12 +330,14 @@ set %>% distinct(spp_iphc, spp_common) #%>% View()
 # hks by subsample rate
 set <- set %>% 
   filter(spp_iphc %in% c(301, 302, 306, 307)) %>% 
-  group_by(fishing_event_id) %>%  # new way?
-  dplyr::summarise(obs_ineffhks = sum(nobs)) %>% 
+  group_by(fishing_event_id) %>%  
+  dplyr::summarise(obs_ineffhks = sum(obs_catch)) %>% 
   ungroup() %>% 
   right_join(set) %>% 
   # Account for situations where there were no ineffective hooks
-  mutate(obs_ineffhks = ifelse(is.na(obs_ineffhks), 0, obs_ineffhks))
+  mutate(obs_ineffhks = ifelse(is.na(obs_ineffhks), 0, obs_ineffhks),
+         # Observed effective hooks 
+         obs_effhks = hksobs - obs_ineffhks)
 
 # if subsample = 1 (20 hk count), use ratio of ineffective hooks to observed
 # hooks to calculate total ineffective hooks for the set. This will need to be
@@ -298,7 +351,7 @@ set <- set %>%
          ex_effhks = hksretriev - ex_ineffhks) 
 
 # This should be 0. If it's not, there are likely duplicates that need to be
-# fixed.
+# fixed and added to removed_data list
 set %>% 
   distinct(fishing_event_id, ex_ineffhks) %>% 
   count(fishing_event_id) %>% 
@@ -498,7 +551,7 @@ set %>% filter(station %in% c(3023, 3122) & NMFS_AREA == 0)
 
 # Oddball areas ----
 
-set %>% distinct(iphcreg, NMFS_mgmt_area) # make sure everything looks correct
+set %>% distinct(iphcreg, NMFS_mgmt_area) # make sure everything looks correct, exceptions below
 
 # Notes:
 
@@ -537,4 +590,9 @@ set %>%
 
 # Write data ----
 
+# set data
 write_csv(set, paste0("output/", YEAR, "/final_iphc_survey_", FIRST_YEAR, "_", YEAR, ".csv"))
+
+# removed data
+removed_data %>% count(reason)
+write_csv(removed_data, paste0("output/", YEAR, "/removed_data_", FIRST_YEAR, "_", YEAR, ".csv"))

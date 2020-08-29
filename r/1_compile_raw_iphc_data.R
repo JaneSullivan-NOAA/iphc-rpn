@@ -1,6 +1,6 @@
 # Compile raw IPHC survey data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: July 2020
+# Last update: Sep 2020
 
 # Step one in creating a fully reproducible abundance index using the IPHC
 # setline survey data is to compile raw survey data into a usable csv format.
@@ -84,7 +84,7 @@ bycatch %>% map(names)
 # Write new names, bind rows/collapse list, create new id: unique set and year
 # combinations
 bycatch <- bycatch %>% 
-  map_df(setNames, c("year", "vessel", "station", "setno", "spp_iphc", "spp_common", "spp_sci", "nobs", "subsample")) %>% 
+  map_df(setNames, c("year", "vessel", "station", "setno", "spp_iphc", "spp_common", "spp_sci", "obs_catch", "subsample")) %>% 
   bind_rows() %>% 
   mutate(fishing_event_id = paste(year, station, sep = "_"))
 
