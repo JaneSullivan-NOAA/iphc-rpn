@@ -107,9 +107,10 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
   
   nest_results <- cpue_results %>% 
     mutate(area = factor(area, levels = c("BSAI","BS","AI","GOA","WGOA","CGOA","EGOA","INSIDE","CAN","WC"))) %>% 
+    droplevels() %>% 
     nest(data = c(-area_combo)) %>% 
     mutate(plot = map2(.x = data, .y = area_combo, 
-                       ~ ggplot(data = .x, aes(x = year, y = area_cpue, col = area)) +
+                       ~ ggplot(data = .x, aes(x = year, y = boot_area_cpue, col = area)) +
                          geom_point() +
                          geom_line() +
                          geom_errorbar(aes(ymin = boot_lci, ymax = boot_uci), width = 0.2) +
@@ -155,7 +156,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
     filter(boot_tst == 1) %>% 
     tidyr::nest(data = c(-species, -year, -FMP_sub_area, -RPN_strata))
   
-  lapply(nest_rpn, head) # visualize list structure
+  # lapply(nest_rpn, head) # visualize list structure
   
   calc_rpn <- function(d, i) sum(d$catch_used[i]) / sum(d$effhks_used[i]) * unique(d$area_kmsq)
   
@@ -179,7 +180,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
     replace(is.na(.), 0) %>% # replace 0s as needed
     # sum over FMP
     group_by(species, FMP_sub_area, year) %>% 
-    mutate(fmp_rpn = sum(strata_rpn),
+    mutate(fmp_rpn = sum(boot_strata_rpn),
            fmp_lci = sum(boot_lci),
            fmp_uci = sum(boot_uci)) %>% 
     arrange(year, FMP_sub_area, RPN_strata)
@@ -189,6 +190,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
   nest_results <- rpn_results %>% 
     distinct(species, year, FMP_sub_area, fmp_rpn, fmp_lci, fmp_uci) %>% 
     mutate(FMP_sub_area = factor(FMP_sub_area, levels = c("BS","AI","WGOA","CGOA","WY","EY/SE"))) %>% 
+    droplevels() %>% 
     nest(data = c(-species)) %>% 
     mutate(plot = map(.x = data, 
                       ~ ggplot(data = .x, aes(x = year, y = fmp_rpn, col = FMP_sub_area)) +
