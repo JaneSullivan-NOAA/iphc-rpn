@@ -1,6 +1,6 @@
 # Clean IPHC data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Sep 2020
+# Last update: Oct 2020
 
 # Step two in creating a fully reproducible abundance index using the IPHC
 # setline survey data is add in new columns, including spatial/area-specific
@@ -8,6 +8,7 @@
 # should be a csv file that is ready to input to CPUE and RPN analysis.
 
 # Helpful resources ----
+
 # Stat area definitions: https://iphc.int/uploads/pdf/tr/IPHC-2004-TR049.pdf
 # FISS Stations: https://iphc.int/uploads/pdf/2017_FISS_station_maps.pdf
 
@@ -52,14 +53,14 @@
 # Set up ----
 
 # '%nin%' <- Negate('%in%')
-libs <- c("tidyverse", "rgdal")
+libs <- c("tidyverse", "rgdal", "lubridate")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {
   install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
 lapply(libs, library, character.only = TRUE)
 
 # User defined variable
 FIRST_YEAR <- 1998 # first year of survey data used (currently exclude 1997)
-YEAR <- 2018 # most recent year of data
+YEAR <- 2019 # most recent year of data
 
 # Read data ----
 
@@ -88,7 +89,9 @@ spp_conversion <- read_csv("data/species_code_conv_table.csv") %>%
 # This chunk of code converts them from degrees decimal minutes (DDM) to decimal
 # degrees (DD)
 oldset <- set %>% 
-  filter(year < 2013) %>% 
+  filter(year < 2013) %>%
+  # REMOVE
+  # filter(fishing_event_id %in% unique(check_3A_CAN$fishing_event_id)) %>% 
   # sep = positions of numeric string where split should occur
   separate(col = startlat, into = c("latd", "latm", "lats"), sep = c(2,4,6), remove = FALSE, convert = TRUE) %>% 
   separate(col = startlon, into = c("lond", "lonm", "lons"), sep = c(3,5,7), remove = FALSE, convert = TRUE) %>% 
@@ -97,8 +100,8 @@ oldset <- set %>%
          startlon2 = lond + as.numeric(paste(lonm, lons, sep = ".")) / 60,
          # Deal with records in the eastern hemisphere - FLAG I really don't
          # understand subtracting 100 but it works
-         startlon = ifelse(startlon2 > 180, startlon2 - 100, -startlon2)) %>% 
-  select(-c(latd, lond, latm, lonm, lats, lons, startlon2))
+         startlon = ifelse(startlon2 > 180, startlon2 - 100, -startlon2)) %>%
+  select(-c(latd, lond, latm, lonm, lats, lons, startlon2)) 
 
 # Recombine set data  
 set <- oldset %>% 
@@ -175,7 +178,32 @@ removed_data <- removed_data %>%
 # There should be no duplicates once ineffs are removed. 
 set %>% distinct(fishing_event_id, setno) %>% 
   count(fishing_event_id) %>% 
-  filter(n > 1) # should be zero!
+  filter(n > 1) -> dup_tst 
+dup_tst # should be zero!
+
+# In 2019 3 duplicate sets weren't flagged as ineffective in the data set
+# provided by IPHC. Executive decision 10/2/20: CT and JS decided to retain the
+# first of the duplicates assuming the second is an accidental repeat si
+set %>% 
+  filter(fishing_event_id %in% dup_tst$fishing_event_id) %>% 
+  # write_csv("output/2019/three_duplicates_2019.csv") 
+  # View() 
+  distinct(fishing_event_id, hauldate, setno, vessel) %>% 
+  group_by(fishing_event_id) %>% 
+  summarize(second_set = max(hauldate)) %>% 
+  mutate(combo = paste0(fishing_event_id, "_", second_set)) -> dup_tst2
+
+# Remove duplicate sets in 2019
+removed_data <- removed_data %>% 
+  bind_rows(data.frame(fishing_event_id = dup_tst2$fishing_event_id,
+                       entire_set_removed = TRUE,
+                       reason = paste0("duplicate effective sets, delete second set from ", dup_tst2$second_set)))
+# update set df
+set <- set %>% 
+  mutate(hauldate2 = lubridate::date(hauldate),
+         combo = paste0(fishing_event_id, "_", hauldate2)) %>% # max doesn't do anything but drop the time stamp of the date
+  filter(!c(combo %in% dup_tst2$combo)) %>%
+  select(-combo)
 
 # Low hook observations ----
 
@@ -186,11 +214,11 @@ set %>% filter(hksobs <= 15) %>% count() # should be 0 - if not must add them to
 
 # Remaining columns with NAs should only be spp_sci (species scientific name)
 set %>% 
-  summarise_all((funs(sum(is.na(.))))) %>% 
+  summarise_all(list(~ sum(is.na(.)))) %>% 
   pivot_longer(cols = names(set)) %>% 
   filter(value != 0)
 set %>% filter(is.na(spp_sci)) %>% pull(spp_common) %>% unique() 
-# these are all gear related, spp grps, unidentified spp.. make # TO DO: added
+# these are all gear related, spp grps, unidentified spp.. make # TODO: added
 # to list to discuss with Cindy. Do we want to treat these species groups in a
 # specific way? At a minimum, we should tell data users that these are either
 # used or removed.
@@ -304,7 +332,7 @@ dup_spp <- set %>%
 
 setdiff(dup_spp, rmlist) # new sets with duplicate species
 
-# Remove all these sets do to data entry errors
+# Remove all these sets due to data entry errors
 set <- set %>% filter(!(fishing_event_id %in% dup_spp))
 
 removed_data <- removed_data %>% 
@@ -428,6 +456,9 @@ coords_nmfs2 <- SpatialPointsDataFrame(coords = coords_nmfs[ , c(3, 4)],
 coords_nmfs2 <- spTransform(coords_nmfs2, CRS(proj4string(sp_data)))
 points(coords_nmfs2[ , c(1, 2)], col = "red") # should = NMFS areas
 
+# tmp <- coords_nmfs2[coords_nmfs2$fishing_event_id %in% check_3A_CAN,]
+# points(tmp[ , c(1, 2)], col = "green") # this shows where those new stations are on the map
+
 # check for fishing events that didn't get NMFS area information assigned
 # properly
 unique(coords_nmfs[coords_nmfs$nmfs == 0, ]$fishing_event_id)
@@ -483,7 +514,7 @@ problem_stations #%>% View() #should be none
 # during spatial matching process
 set <- coords %>% 
   distinct(fishing_event_id, NMFS_AREA = nmfs) %>% 
-  right_join(set) 
+  right_join(set)
 
 # FMP ----
 
@@ -560,13 +591,23 @@ set %>% distinct(iphcreg, NMFS_mgmt_area) # make sure everything looks correct, 
 # (2) IPHC 2C areas in Canada: these are stations that hug the SEAK / Canadian
 # boundary. These aren't errors
 check_2C_CAN <- set %>% filter(iphcreg == "2C" & NMFS_mgmt_area == "CAN")
-# tst <- coords %>% 
-#   filter(fishing_event_id %in% unique(check_2C_CAN$fishing_event_id)) 
-# tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)], 
+tst <- coords %>%
+  filter(fishing_event_id %in% unique(check_2C_CAN$fishing_event_id))
+tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)],
+                               data = tst,
+                               proj4string = CRS("+proj=longlat"))
+tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
+points(tst2[ , c(1, 2)], col = "green")
+
+# (3) IPHC 3A areas in Canada? This was an early issue that should be fixed now.
+# check_3A_CAN <- set %>% filter(iphcreg == "3A" & NMFS_mgmt_area == "CAN")
+# tst <- coords %>%
+#   filter(fishing_event_id %in% unique(check_3A_CAN$fishing_event_id))
+# tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)],
 #                                data = tst,
 #                                proj4string = CRS("+proj=longlat"))
 # tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
-# points(tst2[ , c(1, 2)], col = "green") 
+# points(tst2[ , c(1, 2)], col = "purple")
 
 # Area size info ----
 

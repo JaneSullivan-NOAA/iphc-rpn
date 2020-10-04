@@ -1,6 +1,6 @@
 # Compile raw IPHC survey data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Sep 2020
+# Last update: Oct 2020
 
 # Step one in creating a fully reproducible abundance index using the IPHC
 # setline survey data is to compile raw survey data into a usable csv format.
@@ -40,6 +40,7 @@ set_old <- dir_ls(path = "data/iphc_raw", regexp = "97-06|07-08|09|2010|2011|201
   # collapse into dataframe
   bind_rows()
 
+# reverse regex with invert = TRUE (reads in all new data files)
 set <- dir_ls(path = "data/iphc_raw", regexp = "97-06|07-08|09|2010|2011|2012|2013", invert = TRUE) %>% 
   map(read_excel, na = c("NULL", "")) %>% 
   # Get rid of soak time variable

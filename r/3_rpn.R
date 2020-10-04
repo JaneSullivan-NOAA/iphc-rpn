@@ -1,6 +1,6 @@
 # IPHC Relative Population Numbers by Species/Complex
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Sep 2020
+# Last update: Oct 2020
 
 libs<-c("tidyverse","boot")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )])>0){install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE )])}
@@ -10,7 +10,7 @@ lapply(libs,library,character.only=T)
 
 # Range of years (important as we develop methods to incorporate years <= 1997)
 FIRST_YEAR <- 1998
-YEAR <- 2018
+YEAR <- 2019
 
 # Number of bootstrap replicates
 ITER <- 1500
@@ -89,6 +89,26 @@ set %>% filter(species == "Common sharks") %>% count(species, FMP_sub_area) # fi
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Common sharks")
 
+# Spiny dogfish ----
+
+# spp_race = 310
+set <- full_set %>% mutate(species = ifelse(species == "Shark_Spiny_Dogfish", "Spiny dogfish", species)) 
+set %>% filter(species == "Spiny dogfish") %>% count(species, FMP_sub_area) 
+# consider omitted AI and BS for low sample sizes
+# set <- set %>% filter(!FMP_sub_area %in% c("AI", "BS")) 
+fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
+calc_iphc_indices(COMMON_NAME = "Spiny dogfish")
+
+# Sleeper shark ----
+
+# spp_race = 320
+set <- full_set %>% mutate(species = ifelse(species == "Shark_Sleeper", "Sleeper shark", species)) 
+set %>% filter(species == "Sleeper shark") %>% count(species, FMP_sub_area) 
+# consider omitted AI, WC, and potentially EY/SE for low sample sizes
+# set <- set %>% filter(!FMP_sub_area %in% c("AI", "WC", "EY/SE")) 
+fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
+calc_iphc_indices(COMMON_NAME = "Sleeper shark")
+
 # Shortraker rockfish ----
 
 # note the potential to use SR/RE complex data
@@ -107,6 +127,7 @@ full_set %>% filter(spp_race %in% c(30020) | grepl(c("shortspine|Shortspine|thor
   count(species, spp_iphc, spp_race)
 set <- full_set %>% mutate(species = ifelse(spp_race %in% c(30020), "Shortspine thornyhead", species))
 set %>% filter(species == "Shortspine thornyhead") %>% count(species, FMP_sub_area) # filter areas?
+set <- set %>% filter(!(FMP_sub_area %in% c("WC", "WGOA"))) # low sample sizes
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Shortspine thornyhead")
 
@@ -172,7 +193,6 @@ set %>% filter(species == "Redbanded rockfish") %>% count(species, FMP_sub_area)
 set <- set %>% filter(FMP_sub_area %in% c("CAN", "EY/SE", "INSIDE")) # remove areas w/ low sample sizes
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Redbanded rockfish")
-
 
 # GOA Other Rockfish ----
 

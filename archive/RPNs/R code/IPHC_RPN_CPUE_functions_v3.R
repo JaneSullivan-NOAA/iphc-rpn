@@ -20,6 +20,9 @@ lapply(libs,library,character.only=T)
 IPHC_CPUE<-function(sp_code,outname,YR,ITER,...){
   print("Importing and formating data")
   
+  #debug
+  sp_code=20510;out=T;outname="Sablefish";YR=YR;ITER=ITER
+  
   areasize<-read.csv(paste(getwd(),"/areasize_2015.csv",sep=""), header=T)
   code_list<-read.csv("species_code_conv_table.csv")
   species<-code_list[code_list$RACE_CODE%in%sp_code,c("IPHC_code")]
@@ -132,9 +135,13 @@ IPHC_CPUE<-function(sp_code,outname,YR,ITER,...){
       loop_dat$ex_catch[is.na(loop_dat$ex_catch)]<-0 #any station with no catch is put as 0
       print(nrow(loop_dat))
       #sum over area (either FMP or sub_area)
-      station_sum<-ddply(loop_dat,c("yr","concat",as.character(area_list[k,1])),summarize,ex_ineff=mean(ex_ineff,na.rm=T),ex_eff=mean(ex_eff,na.rm=T)) #have to get one value for hooks for each station, this is necessary if running code for more than one species
-      st_sum2<-ddply(station_sum,c("yr",as.character(area_list[k,1])),summarize,ex_ineff=sum(ex_ineff,na.rm=T),ex_eff=sum(ex_eff,na.rm=T)) #gets one value of eff and ineff hooks for each year and area/strata
-      sp_sum<-ddply(loop_dat,c("yr",as.character(area_list[k,1]),"Species"),summarize,ex_catch=sum(ex_catch,na.rm=T),n_pos_station=sum(obs_catch>0))
+      station_sum<-ddply(loop_dat,c("yr","concat",as.character(area_list[k,1])),summarize,
+                         ex_ineff=mean(ex_ineff,na.rm=T),
+                         ex_eff=mean(ex_eff,na.rm=T)) #have to get one value for hooks for each station, this is necessary if running code for more than one species
+      st_sum2<-ddply(station_sum,c("yr",as.character(area_list[k,1])),summarize,
+                     ex_ineff=sum(ex_ineff,na.rm=T),ex_eff=sum(ex_eff,na.rm=T)) #gets one value of eff and ineff hooks for each year and area/strata
+      sp_sum<-ddply(loop_dat,c("yr",as.character(area_list[k,1]),"Species"),summarize,
+                    ex_catch=sum(ex_catch,na.rm=T),n_pos_station=sum(obs_catch>0))
     
       #add area sizes to summed strata
       area_sum<-merge(sp_sum,n_station,by=c("yr",as.character(area_list[k,1]),"Species"),all.y=T)
