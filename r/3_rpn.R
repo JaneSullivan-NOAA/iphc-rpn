@@ -133,7 +133,6 @@ calc_iphc_indices(COMMON_NAME = "Shortspine thornyhead")
 
 # Lingcod ----
 
-# note the potential to use unidentified thornyhead data
 full_set %>% filter(spp_race %in% c(21910) | grepl(c("lingcod|Lingcod"), species)) %>% 
   count(species, spp_iphc, spp_race)
 set <- full_set %>% mutate(species = ifelse(spp_race %in% c(21910), "Lingcod", species))
