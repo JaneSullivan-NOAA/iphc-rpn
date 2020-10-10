@@ -104,8 +104,40 @@ set <- coords_adfg %>%
 
 # Hold data
 full_set <- set %>% 
-  filter(!is.na(adfg_area))
+  filter(!is.na(adfg_area)) 
 
+write_csv(full_set, paste0("output/", YEAR, "/ADFG/seak_iphc_clean_1998_", YEAR, ".csv"))
+
+# depth profiles - Yelloweye
+full_set %>% 
+  filter(species == "Rockfish_Yelloweye") %>%
+  distinct(adfg_area, fishing_event_id, avgdep_m) %>% 
+  mutate(set = "Sets where YE were present") %>% 
+  bind_rows(full_set %>% 
+              distinct(adfg_area, fishing_event_id, avgdep_m) %>% 
+              mutate(set = "All sets")) %>% 
+  ggplot(aes(x = avgdep_m, col = set, fill = set)) +
+  geom_density(alpha = 0.4) +
+  facet_wrap(~adfg_area) +
+  labs(x = "Average depth of set (m)", y = "Density", col = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+ggsave(paste0("output/", YEAR, "/ADFG/depth_distributions_yelloweye.png"))
+
+# Depth profiles
+full_set %>% 
+  filter(species == "Rockfish_Yelloweye") %>%
+  distinct(adfg_area, fishing_event_id, avgdep_m) %>% 
+  mutate(set = "Sets where YE were present") %>% 
+  ggplot(aes(x = avgdep_m, col = set, fill = set)) +
+  geom_histogram(alpha = 0.4) +
+  facet_wrap(~adfg_area) +
+  labs(x = "Average depth of set (m)", y = "Count", col = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+ggsave(paste0("output/", YEAR, "/ADFG/depth_distributions_yelloweye.png"))
 # look up table ensure all sets are accounted for, even when the species
 # wasn't observed
 full_fishing_events <- full_set %>% 
