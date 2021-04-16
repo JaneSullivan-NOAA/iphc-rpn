@@ -198,11 +198,11 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
                         geom_line() +
                         geom_errorbar(aes(ymin = fmp_lci, ymax = fmp_uci), width = 0.2) +
                         facet_wrap(~ FMP_sub_area, scales = "free_y", ncol = 1) +
-                        ggtitle(label = paste0(COMMON_NAME, " Relative Population Number (+/- 95% bootstrap CI)")) +
+                        ggtitle(label = paste0(COMMON_NAME, " Relative Population Number\n(+/- 95% bootstrap CI)")) +
                         labs(x = NULL, y = "RPN") +
                         theme_bw() +
                         theme(legend.position = "none")),
-           plot_names = map(.x = species, ~ paste0(COMMON_NAME, " RPN ", .x, " ", OBS_OR_EXTRAP, ".pdf")))
+           plot_names = map(.x = species, ~ paste0(COMMON_NAME, "_IPHC_RPN.pdf")))
   
   # Save plots (purrr::walk applies function)
   walk2(.x = nest_results$plot_names, .y = nest_results$plot, 
