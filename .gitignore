@@ -18,3 +18,5 @@
 
 # ignore shape files
 shapefiles
+
+database.csv
