@@ -1,6 +1,6 @@
 # IPHC Relative Population Numbers by Species/Complex
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Oct 2020
+# Last update: Nov 2021
 
 libs<-c("tidyverse","boot")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )])>0){install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE )])}
@@ -10,7 +10,7 @@ lapply(libs,library,character.only=T)
 
 # Range of years (important as we develop methods to incorporate years <= 1997)
 FIRST_YEAR <- 1998
-YEAR <- 2019
+YEAR <- 2021
 
 # Number of bootstrap replicates
 ITER <- 1500
@@ -50,10 +50,31 @@ OBS_OR_EXTRAP <- "EXTRAP"
 
 # Read data ----
 
+# FLAG 2021 - ask Jane for help if you want to recreate results for the old vs
+# new time series... the switch from spreadsheets to using data from IPHC's
+# website was a little messy. Resulting comparisons for these data are stored in
+# output/compare_web_data
 full_set <- read_csv(paste0("output/", YEAR, "/final_iphc_survey_", FIRST_YEAR, "_", YEAR, ".csv")) %>% 
   select(fishing_event_id, NMFS_mgmt_area, FMP, FMP_sub_area, RPN_strata, area_kmsq, 
          species, year, obs_catch, obs_effhks, obs_ineffhks, ex_effhks, ex_ineffhks,
          spp_iphc, spp_race)
+
+# # (2021 - use 'historical' data for 1998 - 2019, then new web data for 2020 and
+# # 2021. full new data time series in output/2021a)
+# full_set <- read_csv(paste0("output/", YEAR, "a/final_iphc_survey_", FIRST_YEAR, "_", YEAR, ".csv")) %>% 
+#   select(fishing_event_id, NMFS_mgmt_area, FMP, FMP_sub_area, RPN_strata, area_kmsq, 
+#          species, year, obs_catch, obs_effhks, obs_ineffhks, ex_effhks, ex_ineffhks,
+#          spp_iphc, spp_race)
+# full_set <- full_set %>% filter(year %in% c(2021, 2020))
+# 
+# full_set2 <- read_csv(paste0("output/2019/final_iphc_survey_", FIRST_YEAR, "_2019.csv")) %>% 
+#   select(fishing_event_id, NMFS_mgmt_area, FMP, FMP_sub_area, RPN_strata, area_kmsq, 
+#          species, year, obs_catch, obs_effhks, obs_ineffhks, ex_effhks, ex_ineffhks,
+#          spp_iphc, spp_race)
+# full_set2 <- full_set2 %>% filter(year <= 2019)
+# 
+# full_set <- full_set %>% 
+#   bind_rows(full_set2)
 
 # look up table ensure all sets are accounted for, even when the species
 # wasn't observed
@@ -156,11 +177,12 @@ calc_iphc_indices(COMMON_NAME = "Yelloweye rockfish")
 # FLAG - I don't see 30051 in the data. Is this an old RACE code?
 full_set %>% filter(spp_race %in% c(30050, 30051, 30052) | grepl(c("rougheye|Rougheye|Blackspotted"), species)) %>% 
   count(species, spp_iphc, spp_race) %>% print(n = Inf)
-set <- full_set %>% mutate(species = ifelse(spp_race %in% c(30050, 30052), "Rougheye Blackspotted", species))
-set %>% filter(species == "Rougheye Blackspotted") %>% count(species, FMP_sub_area) # filter areas?
-set <- set %>% filter(!(FMP_sub_area %in% c("BS", "WC", "WY", "WGOA"))) # low sample sizes
+set <- full_set %>% mutate(species = ifelse(spp_race %in% c(30050, 30052), "REBS", species))
+set %>% filter(species == "REBS") %>% count(species, FMP_sub_area) # filter areas?
+# set <- set %>% filter(!(FMP_sub_area %in% c("BS", "WC", "WY", "WGOA"))) # low sample sizes
+set <- set %>% filter((FMP_sub_area %in% c("WGOA", "CGOA", "WY", "EY/SE"))) # low sample sizes
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
-calc_iphc_indices(COMMON_NAME = "Rougheye Blackspotted")
+calc_iphc_indices(COMMON_NAME = "REBS")
 
 # Arrowtooth flounder ----
 
@@ -171,6 +193,13 @@ set <- full_set %>% mutate(species = ifelse(spp_race %in% c(10110), "Arrowtooth 
 set %>% filter(species == "Arrowtooth flounder") %>% count(species, FMP_sub_area) # filter areas?
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Arrowtooth flounder")
+
+# kamchatka
+
+# some Kamchatka/ATF overlap that may be useful?
+full_set %>% filter(FMP %in% c("BSAI", "GOA")) %>% filter(spp_race %in% c(10110) | grepl(c("arrowtooth|Arrowtooth"), species)) %>% 
+  count(species,FMP, spp_race) %>% print(n = Inf)
+
 
 # Greenland turbot ----
 
@@ -218,3 +247,52 @@ full_set %>%  count(species, spp_iphc, spp_race) %>%
 full_set %>% filter(grepl(c("rockfish|Rockfish"), species)) %>% 
   count(species, spp_iphc, spp_race) %>% 
   arrange(-n) %>% print(n = Inf)
+
+# Skates ----
+
+# species/group	RACE codes
+# big skate	420
+# longnose skate	440
+
+# ABA complex (Bering, Alaska, Aleutian)	435, 471, 472
+full_set %>% filter(spp_race %in% c(435, 471, 472)) %>% count(species, spp_iphc, spp_race)
+set <- full_set %>% 
+  mutate(species = ifelse(spp_race %in% c(435, 471, 472), "ABA skate complex", species)) %>% 
+  filter(!FMP_sub_area %in% c('BS', 'AI', 'CAN', 'INSIDE', 'WC'))
+set %>% filter(species == "ABA skate complex") %>% count(species, FMP_sub_area) # filter areas?
+fishing_events <- full_fishing_events %>% 
+  filter(fishing_event_id %in% unique(set$fishing_event_id))
+calc_iphc_indices(COMMON_NAME = "ABA skate complex")
+
+# big skate
+full_set %>% filter(spp_race %in% c(420)) %>% count(species, spp_iphc, spp_race)
+set <- full_set %>% 
+  mutate(species = ifelse(spp_race %in% c(420), "Big skate", species)) %>% 
+  filter(!FMP_sub_area %in% c('BS', 'AI', 'CAN', 'INSIDE', 'WC'))
+set %>% filter(species == "Big skate") %>% count(species, FMP_sub_area) # filter areas?
+fishing_events <- full_fishing_events %>% 
+  filter(fishing_event_id %in% unique(set$fishing_event_id))
+calc_iphc_indices(COMMON_NAME = "Big skate")
+
+# longnose skate
+full_set %>% filter(spp_race %in% c(440)) %>% count(species, spp_iphc, spp_race)
+set <- full_set %>% 
+  mutate(species = ifelse(spp_race %in% c(440), "Longnose skate", species)) %>% 
+  filter(!FMP_sub_area %in% c('BS', 'AI', 'CAN', 'INSIDE', 'WC'))
+set %>% filter(species == "Longnose skate") %>% count(species, FMP_sub_area) # filter areas?
+fishing_events <- full_fishing_events %>% 
+  filter(fishing_event_id %in% unique(set$fishing_event_id))
+calc_iphc_indices(COMMON_NAME = "Longnose skate")
+
+list.files(path = paste0('output/', YEAR))
+
+# read excel
+libs <- c("fs", "readxl", "purrr") 
+if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
+lapply(libs, library, character.only = TRUE)
+
+list.dirs(path = paste0('output/', YEAR))
+
+rpns <- dir_ls(path = paste0('output/', YEAR)) %>% 
+  map(read_csv) %>% 
+  bind_rows() 

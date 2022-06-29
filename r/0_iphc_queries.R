@@ -11,9 +11,10 @@ libs <- c("tidyverse", "RODBC", "lubridate")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
 lapply(libs, library, character.only = TRUE)
 
-database_akfin="akfin" 
-username_akfin="jsullivan"
-password_akfin="sculja22"
+db <- read_csv('database.csv')
+database_akfin=db$database
+username_akfin=db$username
+password_akfin=db$password
 
 channel_akfin <- odbcConnect("akfin", uid = username_akfin, pwd = password_akfin, believeNRows=FALSE)
 
@@ -83,7 +84,7 @@ cleanset <- set %>%
               mutate(fishing_event_id = paste(survey_year, station, sep = "_")),
             by = c("survey_year", "station", "set_number", "set_key", "fishing_event_id"))
 
-# same column names as 1_
+# same column names as used in original 1_compile_raw_iphc_data.R
 cleanset <- cleanset %>% 
   dplyr::select(year = survey_year,
                 vessel = vessel_code,
@@ -125,12 +126,12 @@ cleanset <- cleanset %>%
          # remove time stamp
          hauldate = as.Date(hauldate),
          # use old codes, perhaps update if this ever becomes relevant using iphc.fiss_prp_codes
-         purpose = dplyr::case_when(purpose == 'Standard grid' ~ 'SG',
-                                    purpose == 'Shallow expansion' ~ 'SE',
-                                    purpose == 'Extra station' ~ 'ES',
-                                    purpose == 'Densified grid (2a)' ~ 'DG',
-                                    purpose == 'Deep expansion' ~ 'DE',
-                                    purpose == 'RI' ~ 'RI',
-                                    purpose == 'Bering grid' ~ 'BG'))
+         purpose = dplyr::case_when(purpose %in% c('Standard grid', 'Standard Grid') ~ 'SG',
+                                    purpose %in% c('Shallow expansion', 'Shallow Expansion') ~ 'SE',
+                                    purpose %in% c('Extra station', 'Extra Station') ~ 'ES',
+                                    purpose %in% c('Densified grid (2a)') ~ 'DG',
+                                    purpose %in% c('Deep expansion', 'Deep Expansion') ~ 'DE',
+                                    purpose %in% c('RI', 'Rockfish Index') ~ 'RI',
+                                    purpose %in% c('Bering grid') ~ 'BG'))
 summary(cleanset)
 write_csv(cleanset, paste0('data/iphc_clean/clean_iphc_survey_', min(cleanset$year), '_', max(cleanset$year), '.csv'))

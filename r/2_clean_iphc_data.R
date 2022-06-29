@@ -1,6 +1,6 @@
 # Clean IPHC data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Oct 2020
+# Last update: Nov 2021
 
 # Step two in creating a fully reproducible abundance index using the IPHC
 # setline survey data is add in new columns, including spatial/area-specific
@@ -60,12 +60,13 @@ lapply(libs, library, character.only = TRUE)
 
 # User defined variable
 FIRST_YEAR <- 1998 # first year of survey data used (currently exclude 1997)
-YEAR <- 2019 # most recent year of data
+YEAR <- 2021 # most recent year of data
 
 # Read data ----
 
 # Cleaned IPHC survey data (all species), output from 1_compile_raw_iphc_data.R
-set <- read_csv(paste0("data/iphc_clean/clean_iphc_survey_1997_", YEAR, ".csv"),
+# - old years you have to change '1998' back to '1997'...
+set <- read_csv(paste0("data/iphc_clean/clean_iphc_survey_1998_", YEAR, ".csv"),
                 guess_max = 1e5) %>% 
   filter(year >= FIRST_YEAR)
 
@@ -83,30 +84,32 @@ spp_conversion <- read_csv("data/species_code_conv_table.csv") %>%
 
 # Reformat spatial data prior to 2013 ----
 
-# Starting location used instead of mid or end location because it's how the
-# location is selected and is therefore the most standardized spatial data.
+# NOV 2021 - no longer needed now that data are in akfin!
 
-# This chunk of code converts them from degrees decimal minutes (DDM) to decimal
-# degrees (DD)
-oldset <- set %>% 
-  filter(year < 2013) %>%
-  # REMOVE
-  # filter(fishing_event_id %in% unique(check_3A_CAN$fishing_event_id)) %>% 
-  # sep = positions of numeric string where split should occur
-  separate(col = startlat, into = c("latd", "latm", "lats"), sep = c(2,4,6), remove = FALSE, convert = TRUE) %>% 
-  separate(col = startlon, into = c("lond", "lonm", "lons"), sep = c(3,5,7), remove = FALSE, convert = TRUE) %>% 
-  # convert DDM to DD
-  mutate(startlat = latd + as.numeric(paste(latm, lats, sep = ".")) / 60,
-         startlon2 = lond + as.numeric(paste(lonm, lons, sep = ".")) / 60,
-         # Deal with records in the eastern hemisphere - FLAG I really don't
-         # understand subtracting 100 but it works
-         startlon = ifelse(startlon2 > 180, startlon2 - 100, -startlon2)) %>%
-  select(-c(latd, lond, latm, lonm, lats, lons, startlon2)) 
-
-# Recombine set data  
-set <- oldset %>% 
-  bind_rows(set %>% filter(year >= 2013)) %>% 
-  arrange(year)
+# # Starting location used instead of mid or end location because it's how the
+# # location is selected and is therefore the most standardized spatial data.
+# 
+# # This chunk of code converts them from degrees decimal minutes (DDM) to decimal
+# # degrees (DD)
+# oldset <- set %>% 
+#   filter(year < 2013) %>%
+#   # REMOVE
+#   # filter(fishing_event_id %in% unique(check_3A_CAN$fishing_event_id)) %>% 
+#   # sep = positions of numeric string where split should occur
+#   separate(col = startlat, into = c("latd", "latm", "lats"), sep = c(2,4,6), remove = FALSE, convert = TRUE) %>% 
+#   separate(col = startlon, into = c("lond", "lonm", "lons"), sep = c(3,5,7), remove = FALSE, convert = TRUE) %>% 
+#   # convert DDM to DD
+#   mutate(startlat = latd + as.numeric(paste(latm, lats, sep = ".")) / 60,
+#          startlon2 = lond + as.numeric(paste(lonm, lons, sep = ".")) / 60,
+#          # Deal with records in the eastern hemisphere - FLAG I really don't
+#          # understand subtracting 100 but it works
+#          startlon = ifelse(startlon2 > 180, startlon2 - 100, -startlon2)) %>%
+#   select(-c(latd, lond, latm, lonm, lats, lons, startlon2)) 
+# 
+# # Recombine set data  
+# set <- oldset %>% 
+#   bind_rows(set %>% filter(year >= 2013)) %>% 
+#   arrange(year)
 
 # Ineffective sets ----
 
@@ -123,18 +126,19 @@ removed_data <- data.frame(fishing_event_id = ineff_sets,
                            entire_set_removed = TRUE,
                            reason = "effective code = N")
 
-# Get rid of any remaining ineffcodes
+
+# Get rid of any remaining ineffcodes -UPDATE NOV 2021: These no longer are an issue in the updated akfin dataset!
 # GI = Gear issues; PS = Predation shark; OT = Other
-
 unique(set$ineffcode)
-ineff_sets2 <- set %>% filter(!is.na(ineffcode)) %>% distinct(ineffcode, fishing_event_id) %>% pull(fishing_event_id)
-# set %>% filter(fishing_event_id %in% ineff_sets2) %>% View()
-set <- set %>% filter(!(fishing_event_id %in% ineff_sets2)) %>% select(-ineffcode)
+# ineff_sets2 <- set %>% filter(!is.na(ineffcode)) %>% distinct(ineffcode, fishing_event_id) %>% pull(fishing_event_id)
+# # set %>% filter(fishing_event_id %in% ineff_sets2) %>% View()
+# set <- set %>% filter(!(fishing_event_id %in% ineff_sets2)) %>% select(-ineffcode)
+# 
+# removed_data <- removed_data %>% 
+#   bind_rows(data.frame(fishing_event_id = ineff_sets2,
+#                        entire_set_removed = TRUE,
+#                        reason = "effective code = Y, but ineffective code = GI | GI:PS | OT"))
 
-removed_data <- removed_data %>% 
-  bind_rows(data.frame(fishing_event_id = ineff_sets2,
-                       entire_set_removed = TRUE,
-                       reason = "effective code = Y, but ineffective code = GI | GI:PS | OT"))
 # Subsamples ----
 
 # subsample	codes					
@@ -183,7 +187,7 @@ dup_tst # should be zero!
 
 # In 2019 3 duplicate sets weren't flagged as ineffective in the data set
 # provided by IPHC. Executive decision 10/2/20: CT and JS decided to retain the
-# first of the duplicates assuming the second is an accidental repeat si
+# first of the duplicates assuming the second is an accidental repeats
 set %>% 
   filter(fishing_event_id %in% dup_tst$fishing_event_id) %>% 
   # write_csv("output/2019/three_duplicates_2019.csv") 
@@ -213,6 +217,7 @@ set %>% filter(hksobs <= 15) %>% count() # should be 0 - if not must add them to
 # set <- set %>% filter(hksobs > 15) 
 
 # Remaining columns with NAs should only be spp_sci (species scientific name)
+# and ineffcodes, which were already dealt with
 set %>% 
   summarise_all(list(~ sum(is.na(.)))) %>% 
   pivot_longer(cols = names(set)) %>% 
@@ -228,9 +233,15 @@ set %>%
                            "Kamchatka/Arrowtooth",
                            "Bering/Aleutian Skate",
                            "Bering/Alaska Skate"))  %>% #View()
-  count(year, iphcreg, spp_common) #%>% View()
+  # count(year, iphcreg, spp_common) #%>% View()
+  group_by(year, iphcreg, spp_common) %>% 
+  dplyr::summarise(catch = sum(obs_catch)) -> sppgroupcatch
+
+sppgroupcatch %>% write_csv(paste0('output/', YEAR, '/sppgroupcatches.csv'))
 
 # Double subsampling ----
+
+# UPDATE NOV 2021: this has been resolved in new akfin data
 
 # Area for future development: subsample = 0 could be used if we made hksretriev
 # = hksobs for these sets and extrapolated ineffective hooks up to the
@@ -302,13 +313,26 @@ set %>%
   filter(n > 1) %>% 
   pull(fishing_event_id) # should be 0
 
-# All sets that are subsample == 0 should have the same number of hks observed
+# **FLAG 2021** subsample == 0 no longer means hksretriev == hksobs. UGH!!
+
+# (pre-2021) All sets that are subsample == 0 should have the same number of hks observed
 # as were retrieved
 set %>% 
   filter(subsample == 0) %>%
   filter(hksobs != hksretriev) %>% 
-  distinct(fishing_event_id, hksobs, hksretriev) # this should technically be 0, but we'll forgive these 2 sets
+  mutate(diff = hksretriev - hksobs) %>% 
+  distinct(fishing_event_id, year, diff, hksobs, hksretriev, purpose) %>% 
+  arrange(diff)# %>% View()# this should technically be 0, but we'll forgive these 2 sets
+  # distinct(year) %>% arrange(year) # this should technically be 0, but we'll forgive these 2 sets
 
+# (2021) after doing some explorations in new_data_problems.R, it looks like
+# past data assumed hksobs equaled hksretriev...these values now are consistent
+# with just hksobs. for now, fix hksretriev equal to hksobs for subsample = 0 in
+# order to make the rest of the code run...
+set <- set %>% 
+  mutate(hksretriev = ifelse(subsample == 0, hksobs, hksretriev))
+
+# (2021) these sets aren't present...
 removed_data <- removed_data %>% 
   bind_rows(data.frame(fishing_event_id = dbl_sub,
                        entire_set_removed = FALSE,
@@ -330,11 +354,12 @@ dup_spp <- set %>%
   filter(n > 1) %>% 
   pull(fishing_event_id)
 
-setdiff(dup_spp, rmlist) # new sets with duplicate species
+setdiff(dup_spp, rmlist) # new sets with duplicate species (none in 2021)
 
 # Remove all these sets due to data entry errors
 set <- set %>% filter(!(fishing_event_id %in% dup_spp))
 
+# (2021) these sets aren't present...
 removed_data <- removed_data %>% 
   bind_rows(data.frame(fishing_event_id = dup_spp,
                        entire_set_removed = TRUE,
@@ -468,16 +493,20 @@ plot(sp_data)
 # points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2018_3216", c(1,2)], pch = 20, col = "green")
 # points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2000_3032", c(1,2)], pch = 20, col = "red")
 # points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2010_3032", c(1,2)], col = "pink")
-coords_nmfs[coords_nmfs$fishing_event_id %in% c("2018_3216", "2000_3032", "2010_3032"), ]$nmfs <- 659
+# coords_nmfs[coords_nmfs$fishing_event_id %in% c("2018_3216", "2000_3032", "2010_3032"), ]$nmfs <- 659 (old)
 
-# NFMS Area 610 (WGOA), correct in 2018All_species_full_survey.csv.
+# manually assigned in 2021 by plotting each of these points manually, example code above.
+coords_nmfs[coords_nmfs$fishing_event_id %in% c("2021_3230", "2018_3216", "2000_3032"), ]$nmfs <- 659 # SEI
+coords_nmfs[coords_nmfs$fishing_event_id %in% c("2021_6607", "2017_6604"), ]$nmfs <- 541 # eastern AI
+
+# NFMS Area 610 (WGOA), correct in 2018All_species_full_survey.csv. (old)
 # points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2005_6055", c(1,2)], pch = 20, col = "orange")
-coords_nmfs[coords_nmfs$fishing_event_id %in% c("2005_6055"), ]$nmfs <- 610
+# coords_nmfs[coords_nmfs$fishing_event_id %in% c("2005_6055"), ]$nmfs <- 610
 
 # Identified as Canada in 2018All_species_full_survey.csv. This should be NMFS
-# area 541
-points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2017_6604", c(1,2)], pch = 20, col = "blue")
-coords_nmfs[coords_nmfs$fishing_event_id %in% c("2017_6604"), ]$nmfs <- 541
+# area 541 
+# points(coords_nmfs2[coords_nmfs2$fishing_event_id == "2017_6604", c(1,2)], pch = 20, col = "blue")
+# coords_nmfs[coords_nmfs$fishing_event_id %in% c("2017_6604"), ]$nmfs <- 541
 
 # next verify that all of the station dumped in the above steps are actually in
 # Canada
@@ -636,4 +665,5 @@ write_csv(set, paste0("output/", YEAR, "/final_iphc_survey_", FIRST_YEAR, "_", Y
 
 # removed data
 removed_data %>% count(reason)
+removed_data <- removed_data %>% distinct()
 write_csv(removed_data, paste0("output/", YEAR, "/removed_data_", FIRST_YEAR, "_", YEAR, ".csv"))

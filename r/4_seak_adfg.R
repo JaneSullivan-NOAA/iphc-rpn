@@ -15,7 +15,7 @@ dir.create(out_path)
 
 # User defined variable
 FIRST_YEAR <- 1998 # first year of survey data used (currently exclude 1997)
-YEAR <- 2019 # most recent year of data
+YEAR <- 2021 # most recent year of data
 
 OBS_OR_EXTRAP = "EXTRAP" # tmp flag to use observed or extrapolated cpue
 ITER = 1500

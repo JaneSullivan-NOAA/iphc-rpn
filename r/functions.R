@@ -119,6 +119,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
                                  subtitle = paste0("by ", .y)) +
                          labs(x = NULL, y = "Number per effective hook") +
                          theme_bw() +
+                         scale_y_continuous(labels = scales::comma) +
                          theme(legend.position = "none")),
            plot_names = map(.x = area_combo, ~ paste0(COMMON_NAME, " CPUE ", .x, " ", OBS_OR_EXTRAP, ".pdf")))
   
@@ -201,6 +202,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
                         ggtitle(label = paste0(COMMON_NAME, " Relative Population Number\n(+/- 95% bootstrap CI)")) +
                         labs(x = NULL, y = "RPN") +
                         theme_bw() +
+                        scale_y_continuous(labels = scales::comma) +
                         theme(legend.position = "none")),
            plot_names = map(.x = species, ~ paste0(COMMON_NAME, "_IPHC_RPN.pdf")))
   

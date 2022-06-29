@@ -19,4 +19,5 @@
 # ignore shape files
 shapefiles
 
+# database credentials
 database.csv
