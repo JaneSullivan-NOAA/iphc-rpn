@@ -1,6 +1,6 @@
 # Clean IPHC data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Nov 2021
+# Last update: Jul 2022
 
 # Step two in creating a fully reproducible abundance index using the IPHC
 # setline survey data is add in new columns, including spatial/area-specific
@@ -183,11 +183,11 @@ removed_data <- removed_data %>%
 set %>% distinct(fishing_event_id, setno) %>% 
   count(fishing_event_id) %>% 
   filter(n > 1) -> dup_tst 
-dup_tst # should be zero!
+dup_tst # should be zero! but see below.
 
 # In 2019 3 duplicate sets weren't flagged as ineffective in the data set
 # provided by IPHC. Executive decision 10/2/20: CT and JS decided to retain the
-# first of the duplicates assuming the second is an accidental repeats
+# first of the duplicates assuming the second are accidental repeats
 set %>% 
   filter(fishing_event_id %in% dup_tst$fishing_event_id) %>% 
   # write_csv("output/2019/three_duplicates_2019.csv") 
@@ -201,7 +201,7 @@ set %>%
 removed_data <- removed_data %>% 
   bind_rows(data.frame(fishing_event_id = dup_tst2$fishing_event_id,
                        entire_set_removed = TRUE,
-                       reason = paste0("duplicate effective sets, delete second set from ", dup_tst2$second_set)))
+                       reason = paste0("duplicate effective sets delete second set from ", dup_tst2$second_set)))
 # update set df
 set <- set %>% 
   mutate(hauldate2 = lubridate::date(hauldate),
@@ -248,7 +248,8 @@ sppgroupcatch %>% write_csv(paste0('output/', YEAR, '/sppgroupcatches.csv'))
 # hksretriev level
 
 # Sets where there were 2 subsample rates within a set. Mostly yelloweye but
-# also one spiny dogfish row in 2015 in 3B ("2015_5166"). 
+# also one spiny dogfish row in 2015 in 3B ("2015_5166"). NOTE THAT IN WEB DATA
+# THESE HAVE GONE AWAY.
 dbl_sub <- set %>% 
   count(fishing_event_id, subsample) %>% 
   pivot_wider(names_from = subsample, values_from = n, values_fill = 0) %>% 
@@ -261,20 +262,22 @@ set %>%
   filter(fishing_event_id %in% dbl_sub & hksobs == hksretriev) %>% 
   distinct(fishing_event_id) %>% 
   pull(fishing_event_id)
-# this is 0 length, so these all need to be removed. 
+# this is 0 length, so these all need to be removed. NOTE THAT IN WEB DATA
+# THESE HAVE GONE AWAY.
 
-set %>% 
-  filter(fishing_event_id %in% dbl_sub) %>% 
-  filter(subsample == 0) %>% 
-  count(year, iphcreg, spp_common) %>% 
-  ggplot(aes(x = year, y = n, fill = factor(spp_common))) +
-  geom_bar(stat = 'identity', position = position_dodge(preserve = "single")) +
-  facet_wrap(~iphcreg)
+# set %>% 
+#   filter(fishing_event_id %in% dbl_sub) %>% 
+#   filter(subsample == 0) %>% 
+#   count(year, iphcreg, spp_common) %>% 
+#   ggplot(aes(x = year, y = n, fill = factor(spp_common))) +
+#   geom_bar(stat = 'identity', position = position_dodge(preserve = "single")) +
+#   facet_wrap(~iphcreg)
 
 # Sets that have both subsample = 0 and 1 for Yelloweye Rockfish occurred in
 # 2010 and 2011 65 times (all but 2 are in 2010). If future development occurs
 # for subsample 0, then subsample = 1 for YE in this set should be removed. For
-# now we're keeping only subsample = 1 as has been done in the past.
+# now we're keeping only subsample = 1 as has been done in the past. NOTE THAT IN WEB DATA
+# THESE HAVE GONE AWAY.
 set %>% 
   filter(grepl("Yelloweye", spp_common) & 
            iphcreg != "2B") %>% 
@@ -286,14 +289,16 @@ set %>%
 setdiff(dbl_YE, dbl_sub) # all the dbl_YE are contained within dbl_sub
 
 # Logic applied in IPHC_RPN_CPUE_functions_v3, which removes 172 fishing events
-# instead of just the 65 identified as having both subsample 0 and 1. 
+# instead of just the 65 identified as having both subsample 0 and 1. NOTE THAT IN WEB DATA
+# THESE HAVE GONE AWAY.
 set %>% 
   filter(year %in% c(2010, 2011) & station >= 3000 & station <= 4050 & subsample == 0) %>% 
   distinct(fishing_event_id) %>% 
   pull() -> old_dbl_YE
 
 # It looks like the old logic missed 6 sets with double subsamples, 5 YE in 2011
-# in 3A and 1 Spiny Dogfish in 3B
+# in 3A and 1 Spiny Dogfish in 3B. NOTE THAT IN WEB DATA
+# THESE HAVE GONE AWAY.
 setdiff(dbl_sub, old_dbl_YE) 
 setdiff(old_dbl_YE, dbl_sub) # = 0, all of the old dbl YE are in dbl_sub
 set %>% filter(fishing_event_id %in% setdiff(dbl_sub, old_dbl_YE) & subsample == 0) %>% 
@@ -341,7 +346,7 @@ removed_data <- removed_data %>%
 # Duplicate species codes ----
 
 # rmlist object from IPHC_RPN_CPUE_functions_v3.R converted to fishing_event_id
-# format. All of these have >= 490 hooks retried, and >= hooks observed and are
+# format. All of these have >= 490 hooks retrieved, and >= hooks observed and are
 # effective == Y. These were removed because of duplicate species counts. We
 # found 5 more of these cases to be removed.
 rmlist <- c("1999_2134","1999_5258","2000_4058","2000_4157","2000_4324","2000_7085","2000_7089","2000_7090","2000_7093",
@@ -657,6 +662,47 @@ set %>%
   distinct(FMP_sub_area) %>% 
   arrange(FMP_sub_area) %>% 
   pull(FMP_sub_area) == c("CAN", "INSIDE", "WC") # should be TRUE
+
+# new 2022 (for 2021 data): changes to survey design ----
+
+# reductions in BS, AI, increases in
+names(set)
+
+set %>% 
+  group_by(year, FMP_sub_area) %>% 
+  summarize(n_sets = length(unique(fishing_event_id))) %>% 
+  ungroup() %>% 
+  complete(year, FMP_sub_area, fill = list(n_sets = 0)) %>% 
+  # filter(!FMP_sub_area %in% c('WC', 'INSIDE')) %>% 
+  ggplot(aes(x = year, y = n_sets)) +
+  geom_point() + 
+  geom_line() +
+  facet_wrap(~FMP_sub_area)
+
+unique(set$RPN_strata)
+
+set %>% 
+  filter(!FMP_sub_area %in% c('WC', 'INSIDE', 'CAN', 'BS', 'AI')) %>%
+  group_by(year, RPN_strata) %>% 
+  summarize(n_sets = length(unique(fishing_event_id))) %>% 
+  ungroup() %>% 
+  complete(year, RPN_strata, fill = list(n_sets = 0)) %>% 
+  ggplot(aes(x = year, y = n_sets)) +
+  geom_point(size = 2) + 
+  geom_line() +
+  facet_wrap(~RPN_strata)
+
+ggplot(set %>% 
+         filter(!FMP_sub_area %in% c('WC', 'CAN')) %>%
+         filter(year >= 2016) %>% 
+         mutate(startlon = ifelse(startlon > 0, startlon - 360, startlon))) +
+  geom_point(aes(x = startlon, y = startlat, col = FMP_sub_area)) +
+  facet_wrap(~year)
+
+# Issues:
+# increase 2019-2021 in CG0
+# decrease 2020-2021 in CG100
+# decrease 2020-2021 in CG200
 
 # Write data ----
 

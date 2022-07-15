@@ -1,6 +1,6 @@
 # IPHC Relative Population Numbers by Species/Complex
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Nov 2021
+# Last update: Jul 2022
 
 libs<-c("tidyverse","boot")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )])>0){install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE )])}
@@ -148,7 +148,7 @@ full_set %>% filter(spp_race %in% c(30020) | grepl(c("shortspine|Shortspine|thor
   count(species, spp_iphc, spp_race)
 set <- full_set %>% mutate(species = ifelse(spp_race %in% c(30020), "Shortspine thornyhead", species))
 set %>% filter(species == "Shortspine thornyhead") %>% count(species, FMP_sub_area) # filter areas?
-set <- set %>% filter(!(FMP_sub_area %in% c("WC", "WGOA"))) # low sample sizes
+# set <- set %>% filter(!(FMP_sub_area %in% c("WC", "WGOA"))) # low sample sizes
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Shortspine thornyhead")
 
@@ -180,7 +180,7 @@ full_set %>% filter(spp_race %in% c(30050, 30051, 30052) | grepl(c("rougheye|Rou
 set <- full_set %>% mutate(species = ifelse(spp_race %in% c(30050, 30052), "REBS", species))
 set %>% filter(species == "REBS") %>% count(species, FMP_sub_area) # filter areas?
 # set <- set %>% filter(!(FMP_sub_area %in% c("BS", "WC", "WY", "WGOA"))) # low sample sizes
-set <- set %>% filter((FMP_sub_area %in% c("WGOA", "CGOA", "WY", "EY/SE"))) # low sample sizes
+# set <- set %>% filter((FMP_sub_area %in% c("WGOA", "CGOA", "WY", "EY/SE", "AI"))) # low sample sizes
 fishing_events <- full_fishing_events %>% filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "REBS")
 
@@ -283,16 +283,3 @@ set %>% filter(species == "Longnose skate") %>% count(species, FMP_sub_area) # f
 fishing_events <- full_fishing_events %>% 
   filter(fishing_event_id %in% unique(set$fishing_event_id))
 calc_iphc_indices(COMMON_NAME = "Longnose skate")
-
-list.files(path = paste0('output/', YEAR))
-
-# read excel
-libs <- c("fs", "readxl", "purrr") 
-if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
-lapply(libs, library, character.only = TRUE)
-
-list.dirs(path = paste0('output/', YEAR))
-
-rpns <- dir_ls(path = paste0('output/', YEAR)) %>% 
-  map(read_csv) %>% 
-  bind_rows() 

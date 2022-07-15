@@ -1,0 +1,56 @@
+---
+title: "Example"
+output: word_document
+date: '2022-07-15'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Connect to the AKFIN database and query the spiny dogfish relative population numbers in the Central GOA and East Yakutat/Southeast management areas
+```{r query, echo=TRUE}
+
+libs <- c('dplyr', 'tidyr', 'RODBC', 'ggplot2')
+if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )]) > 0) {install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE)])}
+lapply(libs, library, character.only = TRUE)
+
+# Enter your username and password for the AKFIN database. Note that these credentials are different than what you may use to access AKFIN Answer. Contact AKFIN for more information.
+username_akfin = 'my_username'
+password_akfin = 'my_password'
+channel_akfin <- odbcConnect("akfin", uid = username_akfin, pwd = password_akfin, believeNRows=FALSE)
+
+dogfish <- sqlQuery(channel_akfin, query = ("
+                select    *
+                from      afsc_host.fiss_rpn
+                where     species in ('Spiny dogfish') and fmp_sub_area in ('CGOA', 'EY/SE')
+                ")) %>% 
+  dplyr::rename_all(tolower) 
+```
+
+## Plot the IPHC survey relative population numbers for spiny dogfish
+```{r plot, echo=TRUE}
+ggplot(data = dogfish, aes(x = survey_year)) +
+  geom_ribbon(aes(ymin = fmp_lci, ymax = fmp_uci), alpha = 0.2, col = NA) +
+  geom_point(aes(y = fmp_rpn)) +
+  geom_line(aes(y = fmp_rpn)) +
+  facet_wrap(~fmp_sub_area) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = 'Year', y = 'RPN')
+```
+
+## Plot the number of total sets and sets with positive catch for spiny dogfish by depth strata in order to evaluate changes in sampling effort over time
+```{r n, echo=TRUE}
+nsum <- dogfish %>% 
+         select(survey_year, rpn_strata,
+                total = n_stations, pos_catch = n_pos_catch) %>% 
+  tidyr::pivot_longer(cols = c('total', 'pos_catch'))
+
+ggplot(data = nsum, aes(x = survey_year, y = value, lty = name, shape = name)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~rpn_strata, ncol = 2) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = 'Year', y = 'Number of sets')
+```

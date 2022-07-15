@@ -106,7 +106,7 @@ cleanset <- cleanset %>%
                 effskts = effective_skates_hauled,
                 hksretriev = hooks_retrieved,
                 hksobs = hooks_observed,
-                purpose,
+                purpose = purpose_code,
                 effective = eff,
                 ineffcode = ineff_code,
                 fishing_event_id,
