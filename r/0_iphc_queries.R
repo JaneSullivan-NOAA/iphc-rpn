@@ -1,5 +1,5 @@
 # Queries to pull IPHC data from AKFIN
-# Updated November 2021
+# Updated october 2023
 # Contact: jane.sullivan@noaa.gov
 
 # In 2021, MESA staff worked with AKFIN to host raw IPHC data and finalized RPN
@@ -18,12 +18,14 @@ password_akfin=db$password
 
 channel_akfin <- odbcConnect("akfin", uid = username_akfin, pwd = password_akfin, believeNRows=FALSE)
 
-YEAR <- 2021
+YEAR <- 2022
 
 datpath <- paste0("data/", YEAR)
 dir.create(datpath)
 rawpath <- paste0(datpath, "/raw") 
 dir.create(rawpath)
+outpath <- paste0("output/", YEAR)
+dir.create(outpath)
 
 # non-halbut catch ----
 

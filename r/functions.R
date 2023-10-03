@@ -4,7 +4,11 @@
 # Last updated: Sep 2020
 
 calc_iphc_indices <- function(COMMON_NAME) { # species of interest
-
+  
+  # COMMON_NAME = "Sablefish"
+  options(warn=-1) # turns warnings off...
+  # options(warn=0) # probably not a good idea, use this code to turn warnings back on
+  
   # Create a year/species subdirectory
   out_path <- paste0("output/", YEAR, "/", COMMON_NAME)
   dir.create(out_path)
@@ -100,7 +104,7 @@ calc_iphc_indices <- function(COMMON_NAME) { # species of interest
     left_join(nest_cpue %>%
                 select(-data, -boot_cpue, -boot_ci) %>%
                 tidyr::unnest(cols = c(boot_area_cpue, boot_sd, boot_lci, boot_uci, 
-                                       boot_sd, boot_bias))) %>% 
+                                       boot_sd, boot_bias))) %>% #View
     replace(is.na(.), 0)  # replace 0s as needed
   
   cpue_results %>% write_csv(paste0(out_path, "/CPUE_", COMMON_NAME, "_", YEAR, "_", OBS_OR_EXTRAP, ".csv"))

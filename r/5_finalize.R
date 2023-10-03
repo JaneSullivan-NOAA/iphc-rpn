@@ -1,7 +1,7 @@
 # summarize files for AKFIN
 # final set data and results hosted in the AFSC_HOST schema of the AKFIN database
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Jul 2022
+# Last update: Oct 2023
 
 # read excel
 libs <- c("dplyr", "fs", "readr", "readxl", "purrr") 
@@ -10,7 +10,7 @@ lapply(libs, library, character.only = TRUE)
 
 # Range of years (important as we develop methods to incorporate years <= 1997)
 FIRST_YEAR <- 1998
-YEAR <- 2021
+YEAR <- 2022
 
 mainfiles <- list.files(path = paste0('output/', YEAR))
 mainfiles <- mainfiles[!grepl('.png|.csv|ADFG', mainfiles)]
@@ -28,7 +28,8 @@ fiss_cpue <- as.list(paste0('output/', YEAR, "/", mainfiles, "/CPUE_", mainfiles
 names(fiss_cpue)
 fiss_cpue <- fiss_cpue %>% 
   rename_all(toupper) %>% 
-  rename(SURVEY_YEAR = YEAR)
+  rename(SURVEY_YEAR = YEAR) %>% 
+  arrange(SURVEY_YEAR, SPECIES)
 write_csv(fiss_cpue, paste0('output/', YEAR, '/fiss_cpue.csv'))
 
 fiss_rpn <- as.list(paste0('output/', YEAR, "/", mainfiles, "/RPN_", mainfiles, "_", YEAR, "_EXTRAP.csv"))%>% 
@@ -37,7 +38,8 @@ fiss_rpn <- as.list(paste0('output/', YEAR, "/", mainfiles, "/RPN_", mainfiles, 
 names(fiss_rpn)
 fiss_rpn <- fiss_rpn %>% 
   rename_all(toupper)%>% 
-  rename(SURVEY_YEAR = YEAR)
+  rename(SURVEY_YEAR = YEAR) %>% 
+  arrange(SURVEY_YEAR, SPECIES)
 write_csv(fiss_rpn, paste0('output/', YEAR, '/fiss_rpn.csv'))
 
 # rename cleaned data to fiss_cleaned.csv - FLAG for some reason the target
@@ -90,7 +92,8 @@ fiss_cleaned <- fiss_cleaned %>%
          FMP_AREA = FMP,
          FMP_DEPTH = fmp_depth,
          RPN_STRATA = RPN_strata,
-         AREA_KMSQ = area_kmsq)
+         AREA_KMSQ = area_kmsq) %>% 
+  arrange(SURVEY_YEAR, SPECIES_COMMON_NAME)
 ncol(fiss_cleaned)
 names(fiss_cleaned)
 write_csv(fiss_cleaned, paste0('output/', YEAR, '/fiss_cleaned.csv'))
@@ -99,7 +102,8 @@ write_csv(fiss_cleaned, paste0('output/', YEAR, '/fiss_cleaned.csv'))
 fiss_stations_removed <- read_csv(paste0('output/', YEAR, '/removed_data_', FIRST_YEAR, '_', YEAR, '.csv'))
 names(fiss_stations_removed)
 fiss_stations_removed <- fiss_stations_removed %>% 
-  rename_all(toupper)
+  rename_all(toupper) %>% 
+  arrange(FISHING_EVENT_ID)
 str(fiss_stations_removed)
 unique(fiss_stations_removed$REASON)
 # formatting problem...(fixed in 2_clean_iphc_data.R, can be removed)

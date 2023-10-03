@@ -1,6 +1,6 @@
 # Clean IPHC data
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Jul 2022
+# Last update: Oct 2023
 
 # Step two in creating a fully reproducible abundance index using the IPHC
 # setline survey data is add in new columns, including spatial/area-specific
@@ -60,13 +60,13 @@ lapply(libs, library, character.only = TRUE)
 
 # User defined variable
 FIRST_YEAR <- 1998 # first year of survey data used (currently exclude 1997)
-YEAR <- 2021 # most recent year of data
+YEAR <- 2022 # most recent year of data
 
 # Read data ----
 
 # Cleaned IPHC survey data (all species), output from 1_compile_raw_iphc_data.R
 # - old years you have to change '1998' back to '1997'...
-set <- read_csv(paste0("data/iphc_clean/clean_iphc_survey_1998_", YEAR, ".csv"),
+set <- read_csv(paste0("data/iphc_clean/clean_iphc_survey_1993_", YEAR, ".csv"),
                 guess_max = 1e5) %>% 
   filter(year >= FIRST_YEAR)
 
@@ -187,10 +187,12 @@ dup_tst # should be zero! but see below.
 
 # In 2019 3 duplicate sets weren't flagged as ineffective in the data set
 # provided by IPHC. Executive decision 10/2/20: CT and JS decided to retain the
-# first of the duplicates assuming the second are accidental repeats
+# first of the duplicates assuming the second are accidental repeats. In 2023, 1
+# duplicate set from 2022 was also flagged. JS did the same thing as was done
+# for the 2019 dups.
 set %>% 
-  filter(fishing_event_id %in% dup_tst$fishing_event_id) %>% 
-  # write_csv("output/2019/three_duplicates_2019.csv") 
+  filter(fishing_event_id %in% dup_tst$fishing_event_id) %>%
+  # write_csv("output/2022/four_duplicates_2022.csv") %>% 
   # View() 
   distinct(fishing_event_id, hauldate, setno, vessel) %>% 
   group_by(fishing_event_id) %>% 
@@ -338,10 +340,10 @@ set <- set %>%
   mutate(hksretriev = ifelse(subsample == 0, hksobs, hksretriev))
 
 # (2021) these sets aren't present...
-removed_data <- removed_data %>% 
-  bind_rows(data.frame(fishing_event_id = dbl_sub,
-                       entire_set_removed = FALSE,
-                       reason = "sets w/ subsample = 0 & 1, removed rows where subsample = 0"))
+# removed_data <- removed_data %>% 
+#   bind_rows(data.frame(fishing_event_id = dbl_sub,
+#                        entire_set_removed = FALSE,
+#                        reason = "sets w/ subsample = 0 & 1, removed rows where subsample = 0"))
 
 # Duplicate species codes ----
 
@@ -365,10 +367,10 @@ setdiff(dup_spp, rmlist) # new sets with duplicate species (none in 2021)
 set <- set %>% filter(!(fishing_event_id %in% dup_spp))
 
 # (2021) these sets aren't present...
-removed_data <- removed_data %>% 
-  bind_rows(data.frame(fishing_event_id = dup_spp,
-                       entire_set_removed = TRUE,
-                       reason = "sets w/ duplicate species counts"))
+# removed_data <- removed_data %>% 
+#   bind_rows(data.frame(fishing_event_id = dup_spp,
+#                        entire_set_removed = TRUE,
+#                        reason = "sets w/ duplicate species counts"))
 
 # Ineffective hooks ----
 
@@ -620,20 +622,30 @@ set %>% distinct(iphcreg, NMFS_mgmt_area) # make sure everything looks correct, 
 
 # Notes:
 
-# (1) Prince William Sound defined as iphcreg == "3A" & NMFS_mgmt_area == "INSIDE")
+# (1) [new in 2022 data] iphcreg=="4B" not defined as NMFS_mgmt_area=="AI"
+set %>% filter(iphcreg=="4B" & NMFS_mgmt_area=="AI") %>% nrow
+set %>% filter(iphcreg=="4B" & is.na(NMFS_mgmt_area)) %>% nrow
+set %>% filter(iphcreg=="4B" & is.na(NMFS_mgmt_area)) 
+# don't know why these are the way they are. fix them.
+set <- set %>% 
+  mutate(NMFS_mgmt_area = ifelse(iphcreg=="4B" & is.na(NMFS_mgmt_area), "AI", NMFS_mgmt_area))
 
-# (2) IPHC 2C areas in Canada: these are stations that hug the SEAK / Canadian
+# (2) Prince William Sound defined as iphcreg == "3A" & NMFS_mgmt_area == "INSIDE")
+
+# (3) IPHC 2C areas in Canada: these are stations that hug the SEAK / Canadian
 # boundary. These aren't errors
 check_2C_CAN <- set %>% filter(iphcreg == "2C" & NMFS_mgmt_area == "CAN")
 tst <- coords %>%
   filter(fishing_event_id %in% unique(check_2C_CAN$fishing_event_id))
-tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)],
-                               data = tst,
-                               proj4string = CRS("+proj=longlat"))
-tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
-points(tst2[ , c(1, 2)], col = "green")
+# tst2 <- SpatialPointsDataFrame(coords = tst[ , c(3, 4)],
+#                                data = tst,
+#                                proj4string = CRS("+proj=longlat"))
+# tst2 <- spTransform(tst2, CRS(proj4string(sp_data)))
+# plot(sp_data)
+# axis(1); axis(2)
+# points(tst2[ , c(1, 2)], col = "green")
 
-# (3) IPHC 3A areas in Canada? This was an early issue that should be fixed now.
+# (4) IPHC 3A areas in Canada? This was an early issue that should be fixed now.
 # check_3A_CAN <- set %>% filter(iphcreg == "3A" & NMFS_mgmt_area == "CAN")
 # tst <- coords %>%
 #   filter(fishing_event_id %in% unique(check_3A_CAN$fishing_event_id))
@@ -658,11 +670,28 @@ set <- set %>%
 # Check - the only RPN_strata with NAs should be Canada (CAN), West Coast (WC),
 # and Inside waters SEAK (INSIDE)
 set %>% 
-  filter(is.na(RPN_strata)) %>% 
+  filter(is.na(RPN_strata)) %>%
   distinct(FMP_sub_area) %>% 
   arrange(FMP_sub_area) %>% 
-  pull(FMP_sub_area) == c("CAN", "INSIDE", "WC") # should be TRUE
+  pull(FMP_sub_area) == c("CAN", "INSIDE", "WC") # should be TRUE, TRUE, TRUE but its not
 
+# New in 2022, there is an NA in FMP_sub_area... it's the same five sets that
+# affected issue number 1 above where iphcreg=="4B" not defined as
+# NMFS_mgmt_area=="AI"
+set %>% filter(is.na(RPN_strata) & is.na(FMP_sub_area))
+set <- set %>% 
+  mutate(FMP_sub_area = ifelse(is.na(RPN_strata) & is.na(FMP_sub_area), "AI", FMP_sub_area))
+set %>% 
+  filter(is.na(RPN_strata) & year==2022 & FMP_sub_area == "AI") 
+
+# manually fix these five rows for 2022, knowing that the IPHC will likely fix
+# these errors in the future.
+set <- set %>% 
+  mutate(FMP = ifelse(is.na(RPN_strata) & year==2022 & FMP_sub_area == "AI", "AI", FMP),
+         fmp_depth = ifelse(is.na(RPN_strata) & year==2022 & FMP_sub_area == "AI", "AI400", fmp_depth),
+         area_kmsq = ifelse(is.na(RPN_strata) & year==2022 & FMP_sub_area == "AI", 12978, area_kmsq),
+         RPN_strata = ifelse(is.na(RPN_strata) & year==2022 & FMP_sub_area == "AI", "AI300500", RPN_strata))
+  
 # new 2022 (for 2021 data): changes to survey design ----
 
 # reductions in BS, AI, increases in

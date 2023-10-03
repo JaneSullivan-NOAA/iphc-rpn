@@ -1,6 +1,6 @@
 # IPHC Relative Population Numbers by Species/Complex
 # Contacts: jane.sullivan@noaa.gov or cindy.tribuzio@noaa.gov
-# Last update: Jul 2022
+# Last update: Oct 2023
 
 libs<-c("tidyverse","boot")
 if(length(libs[which(libs %in% rownames(installed.packages()) == FALSE )])>0){install.packages(libs[which(libs %in% rownames(installed.packages()) == FALSE )])}
@@ -10,7 +10,7 @@ lapply(libs,library,character.only=T)
 
 # Range of years (important as we develop methods to incorporate years <= 1997)
 FIRST_YEAR <- 1998
-YEAR <- 2021
+YEAR <- 2022
 
 # Number of bootstrap replicates
 ITER <- 1500
